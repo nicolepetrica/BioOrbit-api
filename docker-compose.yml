@@ -1,0 +1,15 @@
+version: '3.8'
+services:
+  ollama:
+    container_name: ollama
+    pull_policy: always
+    build:
+      context: .
+      dockerfile: ollama.dockerfile
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+
+volumes:
+  ollama_data:

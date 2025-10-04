@@ -1,0 +1,3 @@
+data/*.pdf
+virtualenv
+faiss_index
