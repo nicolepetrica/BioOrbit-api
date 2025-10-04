@@ -126,7 +126,7 @@ function BubbleGraph({ width, height, nodes }: { width: number; height: number; 
     const rows = Math.ceil(nodes.length / cols);
     const cellW = width / cols;
     const cellH = height / Math.max(1, rows);
-    const scaleR = Math.min(1.25, Math.max(0.7, width / 1200));
+    const scaleR = Math.min(1.25, Math.max(0.7, width / 1000));
 
     setPts(
       nodes.map((n, i) => {
@@ -315,7 +315,6 @@ function AskBar() {
 }
 
 /* -------------------------- Feature card --------------------------- */
-/* -------------------------- Feature card --------------------------- */
 function FeatureCard({
   icon,
   title,
@@ -328,59 +327,49 @@ function FeatureCard({
   return (
     <div
       className="
-        group h-full min-h-[110px]
-        rounded-2xl bg-white/6 ring-1 ring-white/12
+        relative group flex items-center
+        min-h-[110px]
+        rounded-2xl bg-white/5 ring-1 ring-white/10
         shadow-[inset_0_0_60px_rgba(255,255,255,0.045)]
-        backdrop-blur-sm
-        px-6 py-5 md:px-7 md:py-6 xl:px-8 xl:py-7
-        transition-all hover:bg-white/8 hover:ring-white/20
+        backdrop-blur-sm px-8 py-6
+        transition-all duration-300
+        hover:bg-white/8 hover:ring-white/20
       "
     >
-      <div className="flex items-start gap-4 md:gap-5">
-        <img
-          src={icon}
-          alt=""
-          className="h-8 w-8 md:h-9 md:w-9 opacity-90 translate-y-[2px]"
-        />
-        <div className="flex-1">
-          <p className="font-medium text-[clamp(15px,1.25vw,20px)]">
-            {title}
+      {/* Gradient glow effect */}
+      <div
+        className="
+          absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100
+          transition-opacity duration-500 pointer-events-none
+          before:absolute before:inset-[-2px] before:rounded-2xl
+          before:bg-gradient-to-r before:from-purple-500/40 before:to-blue-500/40 
+          before:blur-[12px]
+        "
+      />
+
+      {/* Content */}
+      <div className="flex-shrink-0 w-10 flex justify-center relative z-10">
+        <img src={icon} alt="" className="h-8 w-8 opacity-90" />
+      </div>
+
+      <div className="ml-6 text-left flex-1 relative z-10">
+        <p className="font-normal text-[clamp(15px,1.25vw,20px)] leading-snug">
+          {title}
+        </p>
+        {subtitle && (
+          <p className="mt-1 text-white/70 text-[clamp(13px,1.05vw,16px)] leading-snug">
+            {subtitle}
           </p>
-          {subtitle ? (
-            <p className="mt-1 text-white/80 text-[clamp(13px,1.05vw,16px)]">
-              {subtitle}
-            </p>
-          ) : null}
-        </div>
+        )}
       </div>
     </div>
   );
 }
 
+
 /* ------------------------------- Hero ----------------------------------- */
 function Hero() {
-  const features = [
-    {
-      icon: "/icons/analytics.svg",
-      title: "Explore trends and citation patterns",
-      subtitle: "See how research developed through time",
-    },
-    {
-      icon: "/icons/graph_3.svg",
-      title: "Ask questions and uncover research insights powered by AI",
-      subtitle: "",
-    },
-    {
-      icon: "/icons/network.svg",
-      title: "Save your favorite papers and see how they relate to each other",
-      subtitle: "",
-    },
-    {
-      icon: "/icons/upload.svg",
-      title: "Upload your own papers to see how they link with specific NASA’s research network",
-      subtitle: "",
-    },
-  ];
+
 
   return (
     <section id="hero" className="relative w-screen overflow-hidden px-[40px] pt-12 pb-20 sm:pt-16 lg:pt-20">
@@ -391,7 +380,7 @@ function Hero() {
         <h1 className="font-extrabold tracking-tight text-[clamp(28px,5.6vw,72px)]">
           Your Hub for NASA&apos;s Space Biology Research
         </h1>
-        <p className="mx-auto mt-4 max-w-[1200px] text-white/80 text-[clamp(14px,1.5vw,20px)]">
+          <p className="mx-auto mt-8 max-w-[1200px] text-white/80 text-[clamp(14px,1.5vw,20px)]">
           Explore into over 600 research papers from NASA’s Space Biology program, a vast
           collection about how life adapts, evolves, and survives beyond Earth.
         </p>
@@ -407,8 +396,7 @@ function Hero() {
         "
       >
         <FeatureCard icon="/icons/analytics.svg"
-                    title="Explore trends and citation patterns"
-                    subtitle="See how research developed through time" />
+                    title="Explore trends and citation patterns and see how research developed through time" />
         <FeatureCard icon="/icons/graph_3.svg"
                     title="Ask questions and uncover research insights powered by AI" />
         <FeatureCard icon="/icons/network.svg"
@@ -417,8 +405,20 @@ function Hero() {
                     title="Upload your own papers to see how they link with specific NASA’s research network" />
       </div>
 
+      <button
+        onClick={() => {
+          const el = document.getElementById("footer");
+          if (el) el.scrollIntoView({ behavior: "smooth", block: "end" });
+          else window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+        }}
+        className="mx-auto mt-20 inline-flex items-center justify-center rounded-full
+                  border border-white/15 bg-white/5 px-4 py-2 text-[clamp(12px,1vw,14px)]
+                  text-white/80 hover:bg-white/10 hover:text-white transition"
+      >
+        Scroll to explore
+      </button>
 
-        <div className="mt-10 text-[clamp(12px,1vw,14px)] text-white/70">Scroll to explore</div>
+
       </div>
     </section>
   );
@@ -475,13 +475,12 @@ export default function Home() {
         <PixelBackdrop />
         <div className="mx-auto max-w-[1800px]">
           <BubbleGraph width={w} height={h} nodes={nodes} />
-          <p className="mt-2 text-center text-amber-200 text-[clamp(12px,1vw,14px)]">scroll to see more</p>
-
           <div id="ask" className="scroll-mt-20">{showAsk && <AskBar />}</div>
 
-          <footer className="mt-16 pb-16 text-center text-white/60 text-[clamp(11px,0.9vw,13px)]">
-            © {new Date().getFullYear()} Research Orbits — Space Biology Research
-          </footer>
+        <footer id="footer" className="mt-16 pb-16 text-center text-white/60 text-[clamp(11px,0.9vw,13px)]">
+          © {new Date().getFullYear()} Research Orbits — Space Biology Research
+        </footer>
+
         </div>
       </section>
     </main>
