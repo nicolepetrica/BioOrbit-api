@@ -2,12 +2,12 @@ from mlx_lm import load, generate
 import fitz  # PyMuPDF
 from langchain.docstore.document import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_community.vectorstores import FAISS
-from langchain.retrievers import EnsembleRetriever
-from langchain_community.retrievers import BM25Retriever
 from colorama import Fore, Style, init
-from sentence_transformers import CrossEncoder
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.enums import TA_JUSTIFY, TA_LEFT
 import re
 import os
 import time
@@ -20,7 +20,7 @@ import json
 CONFIG = {
     "data_dir": "./data",
     "summaries_dir": "./summaries",
-    "model": "mlx-community/Qwen2.5-3B-Instruct-4bit", 
+    "model": "mlx-community/Qwen2.5-32B-Instruct-4bit",  # Excellent for scientific text, minimal hallucinations
     "max_tokens": 32000,
 }
 
@@ -197,8 +197,8 @@ def combine_chunk_summaries(model, tokenizer, summaries: list[str]) -> str:
     return response
 
 
-def save_summary(summary: str, doc: Document, summaries_dir: str):
-    """Save summary to file in summaries directory"""
+def save_summary_as_pdf(summary: str, doc: Document, summaries_dir: str):
+    """Save summary to PDF file in summaries directory"""
     # Create summaries directory if it doesn't exist
     Path(summaries_dir).mkdir(parents=True, exist_ok=True)
     
@@ -206,30 +206,86 @@ def save_summary(summary: str, doc: Document, summaries_dir: str):
     source = doc.metadata.get("source", "unknown")
     filename = doc.metadata.get("filename", source)
     
-    # Remove .pdf extension and add .txt
+    # Remove .pdf extension and create new filename
     base_name = os.path.splitext(filename)[0]
-    summary_filename = f"{base_name}_summary.txt"
+    summary_filename = f"summary_{base_name}.pdf"
     summary_path = os.path.join(summaries_dir, summary_filename)
     
-    # Save summary with metadata
-    with open(summary_path, 'w', encoding='utf-8') as f:
-        f.write(f"Summary of: {source}\n")
-        f.write(f"Generated: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
-        f.write(f"Pages: {doc.metadata.get('num_pages', 'unknown')}\n")
-        f.write("=" * 80 + "\n\n")
-        f.write(summary)
+    # Create PDF
+    pdf_doc = SimpleDocTemplate(
+        summary_path,
+        pagesize=letter,
+        rightMargin=72,
+        leftMargin=72,
+        topMargin=72,
+        bottomMargin=18,
+    )
     
-    print(Fore.GREEN + f"✓ Summary saved to: {summary_path}" + Style.RESET_ALL)
+    # Define styles
+    styles = getSampleStyleSheet()
+    
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=16,
+        textColor='#1a1a1a',
+        spaceAfter=30,
+        alignment=TA_LEFT
+    )
+    
+    metadata_style = ParagraphStyle(
+        'Metadata',
+        parent=styles['Normal'],
+        fontSize=10,
+        textColor='#666666',
+        spaceAfter=6
+    )
+    
+    body_style = ParagraphStyle(
+        'CustomBody',
+        parent=styles['Normal'],
+        fontSize=11,
+        alignment=TA_JUSTIFY,
+        spaceAfter=12,
+        leading=14
+    )
+    
+    # Build PDF content
+    story = []
+    
+    # Title
+    story.append(Paragraph(f"Summary of: {source}", title_style))
+    
+    # Metadata
+    story.append(Paragraph(f"<b>Generated:</b> {time.strftime('%Y-%m-%d %H:%M:%S')}", metadata_style))
+    story.append(Paragraph(f"<b>Pages:</b> {doc.metadata.get('num_pages', 'unknown')}", metadata_style))
+    story.append(Paragraph(f"<b>Original file:</b> {filename}", metadata_style))
+    
+    story.append(Spacer(1, 0.3*inch))
+    
+    # Summary content - split into paragraphs
+    paragraphs = summary.split('\n\n')
+    for para in paragraphs:
+        if para.strip():
+            # Escape special characters for ReportLab
+            para_clean = para.strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            story.append(Paragraph(para_clean, body_style))
+    
+    # Build PDF
+    pdf_doc.build(story)
+    
+    print(Fore.GREEN + f"✓ Summary PDF saved to: {summary_path}" + Style.RESET_ALL)
     
     # Also save metadata as JSON
-    metadata_path = os.path.join(summaries_dir, f"{base_name}_metadata.json")
+    metadata_path = os.path.join(summaries_dir, f"summary_{base_name}_metadata.json")
     with open(metadata_path, 'w', encoding='utf-8') as f:
         json.dump({
             "source": source,
             "filename": filename,
             "num_pages": doc.metadata.get('num_pages'),
             "generated_at": time.strftime('%Y-%m-%d %H:%M:%S'),
-            "summary_file": summary_filename
+            "summary_file": summary_filename,
+            "model": CONFIG["model"]
         }, f, indent=2)
 
 
@@ -238,6 +294,7 @@ if __name__ == "__main__":
     
     # Load model
     print(Fore.CYAN + "Loading model..." + Style.RESET_ALL)
+    print(Fore.CYAN + f"Model: {CONFIG['model']}" + Style.RESET_ALL)
     model, tokenizer = load(CONFIG["model"])
 
     # Load documents
@@ -285,7 +342,7 @@ if __name__ == "__main__":
         print(final_summary)
         print(Fore.CYAN + "="*80 + "\n" + Style.RESET_ALL)
         
-        # Save to file
-        save_summary(final_summary, doc, CONFIG["summaries_dir"])
+        # Save to PDF
+        save_summary_as_pdf(final_summary, doc, CONFIG["summaries_dir"])
     
     print(Fore.GREEN + f"\n✓ All summaries completed and saved to {CONFIG['summaries_dir']}" + Style.RESET_ALL)
