@@ -10,14 +10,15 @@ class Settings(BaseSettings):
     chunk_overlap: int = 200
     splitter_separators: List[str] = ["\n\n", "\n", ".", "!", "?", ",", " ", ""]
 
-    # mps for apple devices, could be cpu or cuda too for other devices
-    device: str = "mps"
+    device: str = "cpu"
 
     # weights: (bm25, semantic)
     ensemble_weights: Tuple[float, float] = (0.3, 0.7)
     bm25_k: int = 20
     faiss_k: int = 10
 
+
+    embedding_model: str = "nomic-embed-text"
     rerank_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
     top_k: int = 7
 

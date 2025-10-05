@@ -1,9 +1,7 @@
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.retrievers import BM25Retriever
 from langchain.retrievers import EnsembleRetriever
 from langchain_community.vectorstores import FAISS
-from sentence_transformers import CrossEncoder
 from langchain.schema import Document
 from rag.settings import settings
 import pandas as pd
@@ -12,6 +10,19 @@ import fitz  # PyMuPDF
 import re
 import os
 import json
+import numpy as np
+
+class OllamaEmbeddings:
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        vectors = []
+        for t in texts:
+            resp = ollama.embed(model=settings.embedding_model, input=t)
+            vectors.append(resp['embedding'])
+        return vectors
+
+    def embed_query(self, text: str) -> list[float]:
+        resp = ollama.embed(model=settings.embedding_model, input=text)
+        return resp['embedding']
 
 class RAG:
     _instance = None
@@ -107,20 +118,10 @@ class RAG:
     
     def __init__(self):
         
-        self.embeddings = HuggingFaceEmbeddings(
-            model_name="pritamdeka/PubMedBERT-mnli-snli-scinli-scitail-mednli-stsb",
-            model_kwargs={'device': settings.device}
-        )
+        self.embeddings = OllamaEmbeddings()
         self.docs = self._load_and_clean_pdfs()
 
         # Create FAISS retriever
-        # Add caching for embeddings
-        self.embeddings = HuggingFaceEmbeddings(
-            model_name="pritamdeka/PubMedBERT-mnli-snli-scinli-scitail-mednli-stsb",
-            model_kwargs={'device': settings.device},
-            encode_kwargs={'normalize_embeddings': True}  # Faster similarity search
-        )
-        
         # Cache the FAISS index to disk
         index_path = "faiss_index"
         if os.path.exists(index_path):
@@ -150,14 +151,11 @@ class RAG:
             weights=settings.ensemble_weights  # Equal weights; adjust based on your needs
         )
 
-        # Initialize cross-encoder for reranking
-        self.reranker = CrossEncoder(
-            settings.rerank_model,
-            max_length=512,
-            device=settings.device
-        )
-
-        self.publications_df = pd.read_csv(settings.csv_path)
+        if os.path.exists(settings.csv_path):
+            self.publications_df = pd.read_csv(settings.csv_path)
+        else: 
+            print(f"Warning: CSV file {settings.csv_path} not found. Publication metadata will be unavailable.")
+            self.publications_df = pd.DataFrame()
         self.publications_df['Title'] = self.publications_df['Title'].str.strip()
 
     def _generate_hyde_prompt(self, prompt: str) -> str:
@@ -180,40 +178,20 @@ Answer:""",
         return response['response']
     
     def _manual_ensemble(self, query: str, hyde: str, w_faiss=0.5, w_bm25=0.5, k=10):
-        # FAISS with scores:
         faiss_results = self.faiss_vectorstore.similarity_search_with_score(hyde, k=k)
-        # faiss_results: list[(Document, float)] where float is distance/score (smaller => closer for some versions)
-        # normalize faiss score (example: invert distance => similarity)
-        faiss_docs = []
-        print("FAISS DOCS")
-        for doc, score in faiss_results:
-            # if the returned score is a distance, convert: sim = 1/(1+score)
-            sim = 1.0 / (1.0 + abs(score))
-            faiss_docs.append((doc, sim))
-
-            print(doc.metadata)
-
-        # BM25 - many BM25 retrievers return Documents without score; use rank fallback
+        faiss_docs = [(doc, 1.0/(1.0+abs(score))) for doc, score in faiss_results]
         bm25_docs = self.bm25_retriever.get_relevant_documents(query)[:k]
-        bm25_ranked = [(doc, 1.0 / (rank + 1)) for rank, doc in enumerate(bm25_docs)]
-
-        # merge by unique id (filename+chunk_index)
+        bm25_ranked = [(doc, 1.0/(i+1)) for i, doc in enumerate(bm25_docs)]
         merged = {}
         for doc, s in faiss_docs:
-            key = (doc.metadata.get("file_id"), doc.metadata.get("chunk_index"))
-            merged.setdefault(key, {"doc": doc, "faiss": 0.0, "bm25": 0.0})["faiss"] = s
+            key = (doc.metadata.get("source"), doc.metadata.get("chunk_index"))
+            merged.setdefault(key, {"doc": doc, "faiss":0.0, "bm25":0.0})["faiss"] = s
         for doc, s in bm25_ranked:
-            key = (doc.metadata.get("file_id"), doc.metadata.get("chunk_index"))
-            merged.setdefault(key, {"doc": doc, "faiss": 0.0, "bm25": 0.0})["bm25"] = s
-
-        # combine scores
-        combined = []
-        for v in merged.values():
-            comb_score = w_faiss * v["faiss"] + w_bm25 * v["bm25"]
-            combined.append((v["doc"], comb_score))
-
+            key = (doc.metadata.get("source"), doc.metadata.get("chunk_index"))
+            merged.setdefault(key, {"doc": doc, "faiss":0.0, "bm25":0.0})["bm25"] = s
+        combined = [(v["doc"], w_faiss*v["faiss"] + w_bm25*v["bm25"]) for v in merged.values()]
         combined.sort(key=lambda x: x[1], reverse=True)
-        return [d for d, s in combined[:k]]
+        return [d for d,_ in combined[:k]]
 
 
     def _retrieve_documents(self, prompt: str, hyde: str):
@@ -226,48 +204,21 @@ Answer:""",
 
         # Use the retriever to get top-k documents
         # docs = self.retriever.invoke(prompt)
-        docs = self._manual_ensemble(prompt, hyde, settings.ensemble_weights[0], settings.ensemble_weights[1], settings.bm25_k)
+        weights = getattr(settings, "ensemble_weights", (0.3, 0.7))
+        docs = self._manual_ensemble(prompt, hyde, weights[0], weights[1], settings.bm25_k)
         return docs
 
     def _rerank_documents(self, query: str, documents: list[Document]) -> list[Document]:
-        """
-        Rerank documents using a cross-encoder model for better relevance.
-        
-        Args:
-            query: The search query/question
-            documents: List of retrieved documents to rerank
-            top_k: Number of top documents to return after reranking (default: settings.rerank_top_k)
-        
-        Returns:
-            List of reranked documents (top_k most relevant)
-        """
         if not documents:
             return []
-        
-        # Prepare query-document pairs for the cross-encoder
-        pairs = [[query, doc.page_content] for doc in documents]
-        
-        # Get relevance scores from cross-encoder
-        scores = self.reranker.predict(pairs)
-        
-        # Sort documents by score (descending)
-        doc_score_pairs = list(zip(documents, scores))
-        doc_score_pairs.sort(key=lambda x: x[1], reverse=True)
-        
-        # Return top_k documents with scores added to metadata
-        reranked_docs = []
-        for doc, score in doc_score_pairs[:settings.top_k]:
-            # Create a new document with added rerank score
-            new_doc = Document(
-                page_content=doc.page_content,
-                metadata={
-                    **doc.metadata,
-                    'rerank_score': float(score)
-                }
-            )
-            reranked_docs.append(new_doc)
-        
-        return reranked_docs
+        query_vec = np.array(self.embeddings.embed_query(query))
+        doc_scores = []
+        for doc in documents:
+            doc_vec = np.array(self.embeddings.embed_query(doc.page_content))
+            sim = np.dot(query_vec, doc_vec) / (np.linalg.norm(query_vec)*np.linalg.norm(doc_vec)+1e-10)
+            doc_scores.append((doc, sim))
+        doc_scores.sort(key=lambda x: x[1], reverse=True)
+        return [doc for doc,_ in doc_scores[:settings.top_k]]
 
     def _generate_context_from_documents(self, documents: list[Document]) -> tuple[str, dict]:
         context = ""

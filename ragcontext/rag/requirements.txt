@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+langchain
+langchain-community
+faiss-cpu
+numpy<2
+rank-bm25
+pandas
+PyMuPDF
+python-dotenv
+PyYAML
+pydantic
+pydantic-settings
+ollama
