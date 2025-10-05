@@ -3,7 +3,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from knn import ArticleSimilarityEngine
+from similarity.knn import ArticleSimilarityEngine
 
 app = FastAPI(title="Article Similarity API", version="1.0.0")
 

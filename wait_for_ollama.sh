@@ -1,21 +1,26 @@
 #!/bin/bash
-
-# Start Ollama in the background.
+# Inicia o Ollama em background
+echo "🕐 Starting Ollama server..."
 ollama serve &
-# Record Process ID.
 pid=$!
 
-# Pause for Ollama to start.
+# Espera o servidor ficar pronto
+echo "🕐 Waiting for Ollama to be ready..."
 sleep 5
 
-echo "🔴 Retrieving model..."
-echo "PULLING deepseek-r1:1.5b..."
-ollama pull deepseek-r1:1.5b
-echo "PULLING gemma2:2b..."
-ollama pull gemma2:2b
-echo "PULLING qwen2.5:0.5b..."
-ollama pull qwen2.5:0.5b
-echo "🟢 Done!"
+# Faz o pull dos modelos necessários
+echo "🔴 Retrieving models..."
+echo "⬇️  Pulling nomic-embed-text..."
+ollama pull nomic-embed-text
 
-# Wait for Ollama process to finish.
+echo "⬇️  Pulling qwen2.5:0.5b..."
+ollama pull qwen2.5:0.5b
+
+echo "⬇️  Pulling gemma2:2b..."
+ollama pull gemma2:2b
+
+
+echo "✅ Models ready.."
+
+# Substitui o processo atual pelo ollama (mantém o container ativo)
 wait $pid

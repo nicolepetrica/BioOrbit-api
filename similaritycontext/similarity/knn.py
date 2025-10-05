@@ -24,7 +24,7 @@ class Article:
 class ArticleSimilarityEngine:
     def __init__(
         self,
-        model_name: str = "allenai/specter2",
+        model_name: str = "all-MiniLM-L6-v2",
         n_neighbors_default: int = 3,
         random_state: int = 42
     ):

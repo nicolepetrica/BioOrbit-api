@@ -1,11 +1,9 @@
 FROM ollama/ollama
 
-# Copy the script to the docker image
-COPY ./wait_for_ollama.sh /wait_for_ollama.sh
+RUN apt-get update && apt-get install -y curl jq bash && rm -rf /var/lib/apt/lists/*
 
-# Ensure the script is executable
+COPY ./wait_for_ollama.sh /wait_for_ollama.sh
 RUN chmod +x /wait_for_ollama.sh
 
 EXPOSE 11434
-# ENV OLLAMA_CPU_MODE=true
-ENTRYPOINT ["/bin/sh", "/wait_for_ollama.sh"]
+ENTRYPOINT ["/bin/bash", "/wait_for_ollama.sh"]
