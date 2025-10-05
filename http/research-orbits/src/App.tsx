@@ -1,9 +1,9 @@
-// src/App.tsx
 import React from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route } from "react-router-dom";
+import Home from "./pages/Home";
 import AllPapers from "./pages/AllPapers";
 import SavedPapers from "./pages/SavedPapers";
-import Home from "./pages/Home"; // your landing page
+import AskAI from "./pages/AskAI";
 
 export default function App() {
   return (
@@ -11,7 +11,7 @@ export default function App() {
       <Route path="/" element={<Home />} />
       <Route path="/all" element={<AllPapers />} />
       <Route path="/saved" element={<SavedPapers />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="/ask" element={<AskAI />} />
     </Routes>
   );
 }

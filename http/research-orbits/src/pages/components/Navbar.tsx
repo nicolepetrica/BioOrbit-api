@@ -12,7 +12,7 @@ export default function Navbar() {
     { label: "All Papers", href: "/all" },
     { label: "Saved Papers", href: "/saved" },
     { label: "Upload", href: "#upload" },
-    { label: "Ask AI", href: "#ask" },
+    { label: "Ask AI", href: "/ask" }
   ];
 
 
