@@ -4,6 +4,7 @@ import { Search } from "lucide-react";
 import { csvParse } from "d3-dsv";
 import Navbar from "./components/Navbar";
 import Graphs from "./components/Graphs";
+import StakeholderInsights from "./components/StakeholderInsights";
 import FeatureCard from "./components/FeatureCard";
 
 /* --------------------------------- Data --------------------------------- */
@@ -374,65 +375,69 @@ function Hero() {
 }
 
 /* --------------------------------- Page --------------------------------- */
-export default function Home() {
-  const [w, setW] = useState(1100);
-  const [h, setH] = useState(520);
-  const [nodes, setNodes] = useState<Node[]>([]);
-  const [showAsk, setShowAsk] = useState(false);
-  const bubbleSectionRef = useRef<HTMLDivElement | null>(null);
+  export default function Home() {
+    const [w, setW] = useState(1100);
+    const [h, setH] = useState(520);
+    const [nodes, setNodes] = useState<Node[]>([]);
+    const [showAsk, setShowAsk] = useState(false);
+    const bubbleSectionRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    fetch(CSV_URL)
-      .then((r) => r.text())
-      .then((txt) => setNodes(buildNodesFromCsv(txt)))
-      .catch((err) => console.error("CSV load error", err));
-  }, []);
+    useEffect(() => {
+      fetch(CSV_URL)
+        .then((r) => r.text())
+        .then((txt) => setNodes(buildNodesFromCsv(txt)))
+        .catch((err) => console.error("CSV load error", err));
+    }, []);
 
-  // responsive sizing — 40px page padding => width ≈ vw - 20
-  useEffect(() => {
-    const onResize = () => {
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      setW(Math.max(360, Math.floor(vw - 40)));
-      setH(Math.max(480, Math.min(Math.floor(vh * 0.72), 900)));
-    };
-    onResize();
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
+    // responsive sizing — 40px page padding => width ≈ vw - 20
+    useEffect(() => {
+      const onResize = () => {
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        setW(Math.max(360, Math.floor(vw - 40)));
+        setH(Math.max(480, Math.min(Math.floor(vh * 0.72), 900)));
+      };
+      onResize();
+      window.addEventListener("resize", onResize);
+      return () => window.removeEventListener("resize", onResize);
+    }, []);
 
-  // show AskBar when bubbles are on screen
-  useEffect(() => {
-    if (!bubbleSectionRef.current) return;
-    const obs = new IntersectionObserver(
-      ([entry]) => setShowAsk(entry.isIntersecting && entry.intersectionRatio > 0.15),
-      { threshold: [0, 0.15, 0.4] }
-    );
-    obs.observe(bubbleSectionRef.current);
-    return () => obs.disconnect();
-  }, []);
+    // show AskBar when bubbles are on screen
+    useEffect(() => {
+      if (!bubbleSectionRef.current) return;
+      const obs = new IntersectionObserver(
+        ([entry]) => setShowAsk(entry.isIntersecting && entry.intersectionRatio > 0.15),
+        { threshold: [0, 0.15, 0.4] }
+      );
+      obs.observe(bubbleSectionRef.current);
+      return () => obs.disconnect();
+    }, []);
 
-  return (
+    return (
     <main className="min-h-screen overflow-x-hidden bg-[#0c0814] text-white">
       <Navbar />
 
       {/* HERO */}
       <Hero />
-
-      {/* Bubble chart section */}
-      <section id="trends" ref={bubbleSectionRef} className="relative w-screen px-[40px]">
+      <section id="trends" ref={bubbleSectionRef} className="relative px-[40px]">
         <PixelBackdrop />
         <div className="mx-auto max-w-[1800px]">
           <Graphs />
+
+
+          <div className="bg-[#111827] text-white p-8 rounded-lg w-full">
+            <StakeholderInsights />
+          </div>
+
           <BubbleGraph width={w} height={h} nodes={nodes} />
+          
           <div id="ask" className="scroll-mt-20">{showAsk && <AskBar />}</div>
-
-        <footer id="footer" className="mt-16 pb-16 text-center text-white/60 text-[clamp(11px,0.9vw,13px)]">
-          © {new Date().getFullYear()} Research Orbits — Space Biology Research
-        </footer>
-
+          
+          <footer id="footer" className="mt-16 pb-16 text-center text-white/60 text-[clamp(11px,0.9vw,13px)]">
+            © {new Date().getFullYear()} Research Orbits — Space Biology Research
+          </footer>
         </div>
       </section>
     </main>
   );
-}
+  }
