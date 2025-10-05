@@ -6,12 +6,15 @@ import { Link } from "react-router-dom";
 export default function Navbar() {
   const [open, setOpen] = useState(false);
 
+// in components/Navbar.tsx (desktop & mobile menus)
   const navItems = [
-    { label: "Explore Trends", href: "#trends", type: "hash" },
-    { label: "Saved Papers", href: "/saved", type: "route" },
-    { label: "Upload", href: "#upload", type: "hash" },
-    { label: "Ask AI", href: "#ask", type: "hash" },
+    { label: "Explore Trends", href: "#trends" },
+    { label: "All Papers", href: "/all" },
+    { label: "Saved Papers", href: "/saved" },
+    { label: "Upload", href: "#upload" },
+    { label: "Ask AI", href: "#ask" },
   ];
+
 
   return (
     <>
