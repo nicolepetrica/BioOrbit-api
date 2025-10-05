@@ -17,12 +17,15 @@ class OllamaEmbeddings:
         vectors = []
         for t in texts:
             resp = ollama.embed(model=settings.embedding_model, input=t)
-            vectors.append(resp['embedding'])
+            vectors.append(resp['embeddings'][0])
         return vectors
 
     def embed_query(self, text: str) -> list[float]:
         resp = ollama.embed(model=settings.embedding_model, input=text)
-        return resp['embedding']
+        return resp['embeddings'][0]
+
+    def __call__(self, text: str) -> list[float]:
+        return self.embed_query(text)
 
 class RAG:
     _instance = None

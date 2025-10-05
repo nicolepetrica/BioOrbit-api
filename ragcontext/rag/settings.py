@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     hyde_topp: float = 0.9
     num_pred: int = 100
 
-    answer_model: str = "deepseek-r1:1.5b"
+    answer_model: str = "gemma2:2b"
     answer_temp: float = 0.1
     answer_topk: int = 20
 

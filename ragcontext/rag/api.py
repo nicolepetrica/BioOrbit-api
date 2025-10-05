@@ -49,7 +49,7 @@ def wait_for_ollama_models(interval=5):
 
 # Initialize RAG
 #try:
-time.sleep(300)
+time.sleep(10)
 logger.info("Waiting for Ollama to be ready...")
 wait_for_ollama_models(20)
 

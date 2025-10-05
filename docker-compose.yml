@@ -5,6 +5,8 @@ services:
       dockerfile: ollama.dockerfile
     ports:
       - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
     networks:
       - app_network
     healthcheck:
@@ -14,7 +16,7 @@ services:
       start_period: 10s
       retries: 5
 
-  
+
   rag:
     build:
       context: ./ragcontext
@@ -29,22 +31,25 @@ services:
     networks:
       - app_network
 
-  similarity:
-    build:
-      context: ./similaritycontext
-      dockerfile: knn.Dockerfile
-    ports:
-      - "8080:8080"
-    networks:
-      - app_network
+  # similarity:
+  #   build:
+  #     context: ./similaritycontext
+  #     dockerfile: knn.Dockerfile
+  #   ports:
+  #     - "8080:8080"
+  #   networks:
+  #     - app_network
 
-  frontend:
-    build:
-      context: ./http/research-orbits
-    ports:
-      - "3000:3000"
-    networks:
-      - app_network
+  # frontend:
+  #   build:
+  #     context: ./http/research-orbits
+  #   ports:
+  #     - "3000:3000"
+  #   networks:
+  #     - app_network
+
+volumes:
+  ollama_data:
 
 networks:
   app_network:
