@@ -36,92 +36,50 @@ const processAreaData = (csvText) => {
     }
   });
   
-  const sortedKeywords = Object.entries(totalKeywordCounts)
-    .sort(([, a], [, b]) => b - a);
+  const sortedKeywords = Object.entries(totalKeywordCounts).sort(([, a], [, b]) => b - a);
+  const isBiologyInTopTen = sortedKeywords.slice(0, 10).some(([k]) => k.toLowerCase() === 'biology');
+  let topKeywords = (isBiologyInTopTen ? sortedKeywords.filter(([k]) => k.toLowerCase() !== 'biology') : sortedKeywords).slice(0, 10).map(([k]) => k);
 
-  // Check if "Biology" is in the top 10
-  const isBiologyInTopTen = sortedKeywords
-    .slice(0, 10)
-    .some(([keyword]) => keyword.toLowerCase() === 'biology');
-
-  let topKeywords;
-  if (isBiologyInTopTen) {
-    // If it is, filter it out from the full list and take the new top 10
-    topKeywords = sortedKeywords
-      .filter(([keyword]) => keyword.toLowerCase() !== 'biology')
-      .slice(0, 10)
-      .map(([keyword]) => keyword);
-  } else {
-    // Otherwise, just take the original top 10
-    topKeywords = sortedKeywords
-      .slice(0, 10)
-      .map(([keyword]) => keyword);
-  }
-
-  const allYears = [...new Set(Object.keys(keywordCountsByYear))]
-    .map(year => parseInt(year, 10))
-    .filter(year => year >= 2010 && year <= 2024)
-    .sort((a,b) => a - b);
-  
+  const allYears = [...new Set(Object.keys(keywordCountsByYear))].map(y => parseInt(y, 10)).filter(y => y >= 2010 && y <= 2024).sort((a,b) => a - b);
   const chartData = allYears.map(year => {
-    const yearData = { year: year };
-    topKeywords.forEach(keyword => {
-      yearData[keyword] = keywordCountsByYear[year]?.[keyword] || 0;
-    });
+    const yearData = { year };
+    topKeywords.forEach(k => { yearData[k] = keywordCountsByYear[year]?.[k] || 0; });
     return yearData;
   });
-
   return { chartData, topKeywords };
 };
 
-// --- Process data for Social Media Bar Chart ---
-const processBarData = (csvText) => {
+const processBarData = (csvText, valueField) => {
     const data = csvParse(csvText);
-    const engagementData = data
+    const paperData = data
         .map(row => ({
             title: row.Title,
-            value: parseFloat(row['Social Media Mentions']) || 0,
+            value: parseFloat(row[valueField]) || 0,
+            link: row.Link,
+            summary: row['TLDR Summary'],
+            doi: row.DOI,
         }))
-        .filter(d => d.value > 0)
+        .filter(d => d.value > 0 && d.title)
         .sort((a, b) => b.value - a.value);
 
     const topN = 40;
-    const topData = engagementData.slice(0, topN);
+    const topPapers = paperData.slice(0, topN);
+
+    const chartData = topPapers.map(p => ({ title: p.title, value: p.value, papers: [p] }));
     
-    return topData;
+    return chartData;
 }
 
-// --- Process data for Citation Chart ---
-const processCitationData = (csvText) => {
-    const data = csvParse(csvText);
-    const citationData = data
-        .map(row => ({
-            title: row.Title,
-            value: parseFloat(row['Citations (OpenAlex)']) || 0,
-        }))
-        .filter(d => d.value > 0)
-        .sort((a, b) => b.value - a.value);
-
-    const topN = 40;
-    const topData = citationData.slice(0, topN);
-    
-    return topData;
-}
-
-// --- Process data for Sunburst Chart ---
 const processSunburstData = (csvText) => {
     const data = csvParse(csvText);
-    const root = { name: "Social Presence", children: [] };
     const presenceData = data.map(row => ({
         mentions: parseFloat(row['Social Media Mentions']) || 0,
         readers: parseFloat(row['Mendeley Readers']) || 0,
         altmetric: parseFloat(row['Altmetric Score']) || 0,
         title: row.Title
-    })).filter(d => d.mentions > 0 || d.readers > 0 || d.altmetric > 0);
-
+    })).filter(d => (d.mentions > 0 || d.readers > 0 || d.altmetric > 0) && d.title);
     const presenceMap = { name: "Social Presence", children: [] };
     const categories = { 'Social Media Mentions': 'mentions', 'Mendeley Readers': 'readers', 'Altmetric Score': 'altmetric'};
-
     Object.keys(categories).forEach(catName => {
         const catNode = { name: catName, children: [] };
         presenceData.forEach(paper => {
@@ -129,15 +87,85 @@ const processSunburstData = (csvText) => {
                 catNode.children.push({ name: paper.title, value: paper[categories[catName]] });
             }
         });
-        // Sort children and take top 5 for clarity
-        catNode.children = catNode.children
-            .sort((a,b) => b.value - a.value)
-            .slice(0, 5);
-        presenceMap.children.push(catNode);
+        catNode.children = catNode.children.sort((a,b) => b.value - a.value).slice(0, 5);
+        if (catNode.children.length > 0) presenceMap.children.push(catNode);
     });
-
     return presenceMap;
 }
+
+// --- Details Popover Component ---
+const DetailsPopover = ({ data, onClose }) => {
+    const popoverRef = useRef(null);
+    const [popoverStyle, setPopoverStyle] = useState({});
+
+    const updatePosition = useCallback(() => {
+        if (!data || !data.barElement) return;
+        const barRect = data.barElement.getBoundingClientRect();
+        const style = {
+            position: 'fixed',
+            top: `${barRect.top}px`,
+            left: `${barRect.right + 10}px`,
+            transform: barRect.right + 350 > window.innerWidth ? `translateX(calc(-100% - ${barRect.width}px - 20px))` : 'none',
+        };
+        setPopoverStyle(style);
+    }, [data]);
+
+    useEffect(() => {
+        updatePosition(); // Initial position
+        
+        window.addEventListener('scroll', updatePosition, true);
+        window.addEventListener('resize', updatePosition);
+
+        const handleClickOutside = (event) => {
+            if (popoverRef.current && !popoverRef.current.contains(event.target)) {
+                onClose();
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        
+        return () => {
+            window.removeEventListener('scroll', updatePosition, true);
+            window.removeEventListener('resize', updatePosition);
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [onClose, updatePosition]);
+
+    if (!data) return null;
+
+    const isMultiple = data.barData.title === 'Other Papers';
+    const paper = isMultiple ? null : data.barData.papers[0];
+
+    const buttonStyle = "py-2 px-4 rounded-md text-xs font-semibold text-white transition-all duration-300 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 focus:ring-offset-gray-900";
+
+    return (
+        <div ref={popoverRef} style={popoverStyle} className="bg-gray-900/80 backdrop-blur-sm border border-purple-500/30 rounded-lg shadow-2xl shadow-purple-500/20 p-4 w-80 max-h-[80vh] flex flex-col z-50 animate-fade-in-scale">
+            <button onClick={onClose} className="absolute top-2 right-2 text-gray-400 hover:text-white text-xl">&times;</button>
+            <h3 className="text-md font-bold text-white mb-3 pr-4">{data.barData.title}</h3>
+            {isMultiple ? (
+                <div className="overflow-y-auto pr-2 text-sm custom-scrollbar">
+                    <ul className="space-y-2">
+                        {data.barData.papers.map((p, i) => (
+                           <li key={i} className="flex justify-between items-center bg-gray-800/70 p-2 rounded">
+                               <span className="truncate pr-2">{p.title}</span>
+                               <span className="font-semibold text-indigo-400">{p.value.toFixed(2)}</span>
+                           </li>
+                        ))}
+                    </ul>
+                </div>
+            ) : (
+                <div className="flex-grow flex flex-col text-sm text-gray-300 overflow-hidden">
+                    <a href={paper.link} target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:underline mb-2 break-words">View Source</a>
+                    <p className="flex-grow overflow-y-auto pr-2 border-t border-b border-gray-700 py-2 my-2 custom-scrollbar">{paper.summary || "No summary available."}</p>
+                    <div className="flex-shrink-0 flex items-center justify-end space-x-2 mt-2">
+                        <button onClick={() => alert('Save Paper clicked!')} className={buttonStyle}>Save Paper</button>
+                        <button onClick={() => alert('Ask AI clicked!')} className={buttonStyle}>Ask AI</button>
+                        <button onClick={() => window.open(`https://doi.org/${paper.doi}`, '_blank')} className={buttonStyle}>Full Text</button>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
 
 
 // --- D3 Area Chart Component ---
@@ -169,7 +197,7 @@ const D3AreaChart = ({ data, keywords, focusedKeyword, onLegendClick }) => {
         svg.selectAll('*').remove();
         const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
         const xScale = d3.scaleLinear().domain(d3.extent(data, d => d.year)).range([0, innerWidth]);
-        const maxY = d3.max(data, d => d3.max(keywords, k => d[k]));
+        const maxY = d3.max(data, d => d3.max(keywords, k => d[k] || 0));
         const yScale = d3.scaleLinear().domain([0, maxY * 1.1]).range([innerHeight, 0]).nice();
 
         const xAxis = d3.axisBottom(xScale).tickFormat(d3.format('d')).ticks(Math.min(data.length, 15));
@@ -216,7 +244,7 @@ const D3AreaChart = ({ data, keywords, focusedKeyword, onLegendClick }) => {
 };
 
 // --- D3 Bar Chart Component ---
-const D3BarChart = ({ data, yAxisLabel }) => {
+const D3BarChart = ({ data, yAxisLabel, onBarClick }) => {
     const svgRef = useRef();
     const containerRef = useRef();
     const tooltipRef = useRef();
@@ -260,15 +288,17 @@ const D3BarChart = ({ data, yAxisLabel }) => {
 
         const tooltip = d3.select(tooltipRef.current);
         const containerNode = containerRef.current;
-        g.selectAll('.bar').data(data).enter().append('rect').attr('class', 'bar').attr('x', d => xScale(d.title)).attr('y', d => yScale(d.value)).attr('width', xScale.bandwidth()).attr('height', d => innerHeight - yScale(d.value)).attr('fill', (d, i) => COLORS[i % COLORS.length]).on('mouseover', () => {
-            tooltip.transition().duration(200).style('opacity', .9);
-        }).on('mousemove', (event, d) => {
-            const [x, y] = d3.pointer(event, containerNode);
-            tooltip.html(`<strong>${d.title}</strong><br/>${yAxisLabel}: ${d.value.toFixed(2)}`).style('left', (x + 15) + 'px').style('top', (y - 28) + 'px');
-        }).on('mouseout', () => {
-            tooltip.transition().duration(500).style('opacity', 0);
-        });
-    }, [data, dimensions, yAxisLabel]);
+        g.selectAll('.bar').data(data).enter().append('rect').attr('class', 'bar').attr('x', d => xScale(d.title)).attr('y', d => yScale(d.value)).attr('width', xScale.bandwidth()).attr('height', d => innerHeight - yScale(d.value)).attr('fill', (d, i) => COLORS[i % COLORS.length])
+            .style('cursor', 'pointer')
+            .on('mouseover', () => tooltip.transition().duration(200).style('opacity', .9))
+            .on('mousemove', (event, d) => {
+                const [x, y] = d3.pointer(event, containerNode);
+                tooltip.html(`<strong>${d.title}</strong><br/>${yAxisLabel}: ${d.value.toFixed(2)}`).style('left', (x + 15) + 'px').style('top', (y - 28) + 'px');
+            })
+            .on('mouseout', () => tooltip.transition().duration(500).style('opacity', 0))
+            .on('click', (event, d) => onBarClick(event, d));
+            
+    }, [data, dimensions, yAxisLabel, onBarClick]);
 
     return (
         <div ref={containerRef} className="w-full h-full relative">
@@ -277,7 +307,6 @@ const D3BarChart = ({ data, yAxisLabel }) => {
         </div>
     );
 };
-
 
 // --- D3 Sunburst Chart Component ---
 const D3SunburstChart = ({ data }) => {
@@ -305,38 +334,20 @@ const D3SunburstChart = ({ data }) => {
         const radius = Math.min(width, height) / 2 - 10;
         const color = d3.scaleOrdinal(d3.quantize(d3.interpolateRainbow, data.children.length + 1));
 
-        const hierarchy = d3.hierarchy(data)
-            .sum(d => d.value)
-            .sort((a, b) => b.value - a.value);
+        const hierarchy = d3.hierarchy(data).sum(d => d.value).sort((a, b) => b.value - a.value);
         const partition = d3.partition().size([2 * Math.PI, radius]);
         const root = partition(hierarchy);
 
-        const svg = d3.select(svgRef.current)
-            .attr("width", width)
-            .attr("height", height)
-            .attr("viewBox", [-width / 2, -height / 2, width, height]);
-
+        const svg = d3.select(svgRef.current).attr("width", width).attr("height", height).attr("viewBox", [-width / 2, -height / 2, width, height]);
         svg.selectAll('*').remove();
-
         const g = svg.append("g");
-        
         const tooltip = d3.select(tooltipRef.current);
         const containerNode = containerRef.current;
+        const arc = d3.arc().startAngle(d => d.x0).endAngle(d => d.x1).padAngle(d => Math.min((d.x1 - d.x0) / 2, 0.005)).padRadius(radius / 2).innerRadius(d => d.y0).outerRadius(d => d.y1 - 1);
 
-        const arc = d3.arc()
-            .startAngle(d => d.x0)
-            .endAngle(d => d.x1)
-            .padAngle(d => Math.min((d.x1 - d.x0) / 2, 0.005))
-            .padRadius(radius / 2)
-            .innerRadius(d => d.y0)
-            .outerRadius(d => d.y1 - 1);
-
-        g.selectAll("path")
-            .data(root.descendants().filter(d => d.depth))
-            .join("path")
+        g.selectAll("path").data(root.descendants().filter(d => d.depth)).join("path")
             .attr("fill", d => { while (d.depth > 1) d = d.parent; return color(d.data.name); })
-            .attr("fill-opacity", 0.6)
-            .attr("d", arc)
+            .attr("fill-opacity", 0.6).attr("d", arc)
             .on('mouseover', function() {
                 d3.select(this).attr('fill-opacity', 0.8);
                 tooltip.transition().duration(200).style('opacity', .9);
@@ -344,19 +355,15 @@ const D3SunburstChart = ({ data }) => {
             .on('mousemove', (event, d) => {
                 const [x, y] = d3.pointer(event, containerNode);
                 let tooltipContent = '';
-
-                if (d.depth === 1) { // It's a main category (inner circle)
+                if (d.depth === 1) {
                     const categoryName = d.data.name;
                     const description = SUNBURST_CATEGORY_DESCRIPTIONS[categoryName] || '';
                     tooltipContent = `<strong>${categoryName}</strong><br/>${description}<br/><em>Total Value: ${d.value.toFixed(2)}</em>`;
-                } else { // It's a paper (outer circle)
+                } else {
                     const path = d.ancestors().map(ancestor => ancestor.data.name).reverse().join(" / ");
                     tooltipContent = `<strong>${path}</strong><br/>Value: ${d.value.toFixed(2)}`;
                 }
-                
-                tooltip.html(tooltipContent)
-                    .style('left', (x + 15) + 'px')
-                    .style('top', (y - 28) + 'px');
+                tooltip.html(tooltipContent).style('left', (x + 15) + 'px').style('top', (y - 28) + 'px');
             })
             .on('mouseout', function() {
                 d3.select(this).attr('fill-opacity', 0.6);
@@ -374,7 +381,7 @@ const D3SunburstChart = ({ data }) => {
 };
 
 
-// --- Keywords Graph Wrapper ---
+// --- Chart Wrapper Components ---
 const KeywordsGraph = ({ csvText }) => {
   const [chartData, setChartData] = useState(null);
   const [topKeywords, setTopKeywords] = useState([]);
@@ -399,76 +406,44 @@ const KeywordsGraph = ({ csvText }) => {
         <p className="text-sm text-gray-400">Frequency of the top 10 concepts. Click a legend item to focus.</p>
       </div>
       <div className="flex-grow relative">
-        {chartData ? <D3AreaChart 
-                        data={chartData} 
-                        keywords={topKeywords} 
-                        focusedKeyword={focusedKeyword}
-                        onLegendClick={handleLegendClick}
-                     /> : <p>Processing data...</p>}
+        {chartData ? <D3AreaChart data={chartData} keywords={topKeywords} focusedKeyword={focusedKeyword} onLegendClick={handleLegendClick} /> : <p>Processing data...</p>}
       </div>
     </div>
   );
 };
 
-// --- Social Engagement Bar Chart Wrapper ---
-const SocialEngagementBarChart = ({ csvText }) => {
+const BarChartWrapper = ({ csvText, title, subtitle, valueField, yAxisLabel }) => {
     const [chartData, setChartData] = useState(null);
+    const [popoverData, setPopoverData] = useState(null);
 
     useEffect(() => {
-        if (csvText) {
-            const processed = processBarData(csvText);
-            setChartData(processed);
-        }
-    }, [csvText]);
+        if (csvText) setChartData(processBarData(csvText, valueField));
+    }, [csvText, valueField]);
+
+    const handleBarClick = useCallback((event, barData) => {
+        const barElement = event.currentTarget;
+        setPopoverData(prev => prev && prev.barData.title === barData.title ? null : { barData, barElement });
+    }, []);
+    
+    const handleClosePopover = useCallback(() => setPopoverData(null), []);
 
     return (
         <div className="bg-gray-800 rounded-xl shadow-2xl p-4 sm:p-6 h-[70vh] flex flex-col">
+            <DetailsPopover data={popoverData} onClose={handleClosePopover} />
             <div className="flex-shrink-0 mb-4 text-center">
-                <h2 className="text-xl font-bold text-white">Social Media Engagement</h2>
-                <p className="text-sm text-gray-400">Top papers by social media mentions.</p>
+                <h2 className="text-xl font-bold text-white">{title}</h2>
+                <p className="text-sm text-gray-400">{subtitle}</p>
             </div>
             <div className="flex-grow relative flex items-center justify-center">
-                {chartData ? <D3BarChart data={chartData} yAxisLabel="Mentions" /> : <p className="text-gray-300">Processing data...</p>}
+                {chartData ? <D3BarChart data={chartData} yAxisLabel={yAxisLabel} onBarClick={handleBarClick} /> : <p className="text-gray-300">Processing data...</p>}
             </div>
         </div>
     );
 }
 
-// --- Most Cited Papers Bar Chart Wrapper ---
-const MostCitedPapersChart = ({ csvText }) => {
-    const [chartData, setChartData] = useState(null);
-
-    useEffect(() => {
-        if (csvText) {
-            const processed = processCitationData(csvText);
-            setChartData(processed);
-        }
-    }, [csvText]);
-
-    return (
-        <div className="bg-gray-800 rounded-xl shadow-2xl p-4 sm:p-6 h-[70vh] flex flex-col">
-            <div className="flex-shrink-0 mb-4 text-center">
-                <h2 className="text-xl font-bold text-white">Most Cited Papers</h2>
-                <p className="text-sm text-gray-400">Top papers by OpenAlex citations.</p>
-            </div>
-            <div className="flex-grow relative flex items-center justify-center">
-                {chartData ? <D3BarChart data={chartData} yAxisLabel="Citations" /> : <p className="text-gray-300">Processing data...</p>}
-            </div>
-        </div>
-    );
-}
-
-// --- Social Presence Sunburst Chart Wrapper ---
 const SocialPresenceSunburst = ({ csvText }) => {
     const [chartData, setChartData] = useState(null);
-
-    useEffect(() => {
-        if (csvText) {
-            const processed = processSunburstData(csvText);
-            setChartData(processed);
-        }
-    }, [csvText]);
-
+    useEffect(() => { if (csvText) setChartData(processSunburstData(csvText)); }, [csvText]);
     return (
         <div className="bg-gray-800 rounded-xl shadow-2xl p-4 sm:p-6 h-[70vh] flex flex-col">
             <div className="flex-shrink-0 mb-4 text-center">
@@ -482,7 +457,7 @@ const SocialPresenceSunburst = ({ csvText }) => {
     );
 }
 
-// The main component to be imported into your application
+// --- Main App Component ---
 export default function App() {
   const [csvText, setCsvText] = useState('');
   const [loading, setLoading] = useState(true);
@@ -507,15 +482,27 @@ export default function App() {
     fetchData();
   }, []);
 
-  if (loading) return <div className="text-center p-8">Loading and processing data...</div>
-  if (error) return <div className="text-center p-8 text-red-400">{error}</div>
-
   return (
-    <div className="p-4 sm:p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
-        <KeywordsGraph csvText={csvText} />
-        <SocialEngagementBarChart csvText={csvText} />
-        <MostCitedPapersChart csvText={csvText} />
-        <SocialPresenceSunburst csvText={csvText} />
-    </div>
+    <>
+        <style>{`
+            @keyframes fadeInScale {
+                from { opacity: 0; transform: scale(0.95); }
+                to { opacity: 1; transform: scale(1); }
+            }
+            .animate-fade-in-scale { animation: fadeInScale 0.3s ease-out forwards; }
+        `}</style>
+        <div className="bg-gray-900 min-h-screen text-white">
+            {loading && <div className="text-center p-8">Loading...</div>}
+            {error && <div className="text-center p-8 text-red-400">{error}</div>}
+            {!loading && !error && (
+                 <div className="p-4 sm:p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <KeywordsGraph csvText={csvText} />
+                    <BarChartWrapper csvText={csvText} title="Social Media Engagement" subtitle="Top papers by social media mentions." valueField="Social Media Mentions" yAxisLabel="Mentions" />
+                    <BarChartWrapper csvText={csvText} title="Most Cited Papers" subtitle="Top papers by OpenAlex citations." valueField="Citations (OpenAlex)" yAxisLabel="Citations" />
+                    <SocialPresenceSunburst csvText={csvText} />
+                </div>
+            )}
+        </div>
+    </>
   );
 }
