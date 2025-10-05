@@ -36,14 +36,31 @@ const processAreaData = (csvText) => {
     }
   });
   
-  const topKeywords = Object.entries(totalKeywordCounts)
-    .sort(([, a], [, b]) => b - a)
+  const sortedKeywords = Object.entries(totalKeywordCounts)
+    .sort(([, a], [, b]) => b - a);
+
+  // Check if "Biology" is in the top 10
+  const isBiologyInTopTen = sortedKeywords
     .slice(0, 10)
-    .map(([keyword]) => keyword);
+    .some(([keyword]) => keyword.toLowerCase() === 'biology');
+
+  let topKeywords;
+  if (isBiologyInTopTen) {
+    // If it is, filter it out from the full list and take the new top 10
+    topKeywords = sortedKeywords
+      .filter(([keyword]) => keyword.toLowerCase() !== 'biology')
+      .slice(0, 10)
+      .map(([keyword]) => keyword);
+  } else {
+    // Otherwise, just take the original top 10
+    topKeywords = sortedKeywords
+      .slice(0, 10)
+      .map(([keyword]) => keyword);
+  }
 
   const allYears = [...new Set(Object.keys(keywordCountsByYear))]
     .map(year => parseInt(year, 10))
-    .filter(year => year >= 2010) // Filter to start from 2010
+    .filter(year => year >= 2010 && year <= 2024)
     .sort((a,b) => a - b);
   
   const chartData = allYears.map(year => {
@@ -68,13 +85,8 @@ const processBarData = (csvText) => {
         .filter(d => d.value > 0)
         .sort((a, b) => b.value - a.value);
 
-    const topN = 7;
+    const topN = 40;
     const topData = engagementData.slice(0, topN);
-    const otherMentions = engagementData.slice(topN).reduce((sum, d) => sum + d.value, 0);
-
-    if (otherMentions > 0) {
-        topData.push({ title: 'Other Papers', value: otherMentions });
-    }
     
     return topData;
 }
@@ -90,13 +102,8 @@ const processCitationData = (csvText) => {
         .filter(d => d.value > 0)
         .sort((a, b) => b.value - a.value);
 
-    const topN = 7;
+    const topN = 40;
     const topData = citationData.slice(0, topN);
-    const otherCitations = citationData.slice(topN).reduce((sum, d) => sum + d.value, 0);
-
-    if (otherCitations > 0) {
-        topData.push({ title: 'Other Papers', value: otherCitations });
-    }
     
     return topData;
 }
