@@ -8,17 +8,12 @@ services:
     networks:
       - app_network
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "set -e; \
-          COUNT=$(curl -sf http://localhost:11434/api/tags | jq '.models | length'); \
-          [ \"$COUNT\" -ge 3 ]"
-        ]
+      test: ["CMD-SHELL", "curl -sf http://localhost:11434/api/tags > /dev/null"]
       interval: 15s
-      timeout: 2147483s
-      start_period: 420s
-      retries: 50
+      timeout: 10s
+      start_period: 10s
+      retries: 5
+
   
   rag:
     build:

@@ -25,8 +25,34 @@ app.add_middleware(
 class Query(BaseModel):
     question: str
 
+def wait_for_ollama_models(interval=5):
+    """
+    Wait until all REQUIRED_MODELS are available in Ollama.
+    - timeout: max seconds to wait
+    - interval: seconds between checks
+    """
+    logger.info("🟡 Waiting for Ollama models to become available...")
+    
+    while True:
+        try:
+            response = ollama.list()
+            available = [m["model"] for m in response["models"]]
+            if len(available) == 3:
+                break
+
+            logger.info(f"Models missing: {available}. Retrying in {interval}s...")
+        except Exception as e:
+            logger.warning(f"Ollama not responding yet: {e}. Retrying in {interval}s...")
+
+        time.sleep(interval)
+
+
 # Initialize RAG
 #try:
+time.sleep(300)
+logger.info("Waiting for Ollama to be ready...")
+wait_for_ollama_models(20)
+
 logger.info("Initializing RAG pipeline...")
 rag = RAG()
 logger.info("RAG initialized successfully.")
