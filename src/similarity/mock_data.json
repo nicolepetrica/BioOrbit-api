@@ -1,0 +1,42 @@
+[
+    {
+      "id": "A1",
+      "title": "Deep Learning for Medical Image Segmentation",
+      "abstract": "We explore convolutional neural networks for medical image segmentation, achieving strong performance on MRI datasets.",
+      "year": 2022,
+      "authors": ["Smith J.", "Lee H."],
+      "keywords": ["deep learning", "segmentation", "medical imaging"]
+    },
+    {
+      "id": "A2",
+      "title": "Transformer Models for Clinical Text Understanding",
+      "abstract": "This paper applies transformer-based models to clinical narratives, improving concept extraction and entity linking.",
+      "year": 2023,
+      "authors": ["Garcia F.", "Wang M."],
+      "keywords": ["transformers", "NLP", "clinical text"]
+    },
+    {
+      "id": "A3",
+      "title": "Self-Supervised Pretraining for Biomedical NLP",
+      "abstract": "We present self-supervised pretraining techniques for biomedical language tasks, reducing labeled data requirements.",
+      "year": 2021,
+      "authors": ["Zhao K.", "Kim S."],
+      "keywords": ["self-supervised", "biomedical", "pretraining"]
+    },
+    {
+      "id": "A4",
+      "title": "Graph Neural Networks in Drug Discovery",
+      "abstract": "Graph neural networks are used to predict molecular properties and aid virtual screening in drug discovery pipelines.",
+      "year": 2020,
+      "authors": ["Ahmed R.", "Patel D."],
+      "keywords": ["GNN", "drug discovery", "molecular properties"]
+    },
+    {
+      "id": "A5",
+      "title": "Contrastive Learning for Scientific Paper Recommendations",
+      "abstract": "Contrastive learning on citation graphs enhances recommendation quality by capturing semantic relationships among papers.",
+      "year": 2024,
+      "authors": ["Oliveira N.", "Santos B."],
+      "keywords": ["contrastive learning", "recommendation", "citations"]
+    }
+  ]
