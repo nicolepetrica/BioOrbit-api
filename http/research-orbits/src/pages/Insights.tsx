@@ -1,6 +1,7 @@
 import React from "react";
 import Navbar from "./components/Navbar";
 import StakeholderInsights from "./components/StakeholderInsights";
+import Graphs from "./components/Graphs";
 
 const Insights = () => {
 
@@ -23,7 +24,9 @@ const Insights = () => {
                   </p>
                 </header>
                 {/* --- END OF HEADER --- */}
-
+                <div className="mt-8">
+                <Graphs />
+                </div>
                 {/* Added a wrapper with vertical margin for spacing */}
                 <div className="my-16">
                   {/* Pass the papers prop to StakeholderInsights */}

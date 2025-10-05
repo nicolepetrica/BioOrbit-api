@@ -422,7 +422,6 @@ function Hero() {
       <section id="trends" ref={bubbleSectionRef} className="relative px-[40px]">
         <PixelBackdrop />
         <div className="mx-auto max-w-[1800px]">
-          <Graphs />
 
           <BubbleGraph width={w} height={h} nodes={nodes} />
           
