@@ -7,8 +7,8 @@ import { useBookmarks } from '../hooks/useBookmarks';
 
 // --- Helper Functions (UNCHANGED for now, will modify to accept Paper[] next) ---
 const COLORS = [
-  '#EA698B', '#D55D92', '#C05299', '#AC46A1', '#973AA8',
-  '#822FAF', '#6D23B6', '#6411AD', '#571089', '#47126B'
+  '#FF6D00', '#FF7900', '#FF8500', '#FF9100', '#FF9E00',
+  '#240046', '#3C096C', '#5A189A', '#7B2CBF', '#9D4EDD'
 ];
 
 const SUNBURST_CATEGORY_DESCRIPTIONS = {

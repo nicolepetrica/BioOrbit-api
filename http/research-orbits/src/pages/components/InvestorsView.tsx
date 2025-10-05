@@ -20,6 +20,12 @@ type ProcessedData = {
 
 const PREDICTIONS_CSV_URL = '/arima_predictions_with_history.csv';
 
+const METRIC_DESCRIPTIONS: { [key: string]: string } = {
+  'Altmetric Score': 'A weighted score that tracks the attention a research output has received online, including news, blogs, and social media.',
+  'Citations (Crossref)': 'The total number of times a paper has been cited by other academic papers, as tracked by the Crossref database.',
+  'Social Media Mentions': 'A direct count of mentions on social media platforms like X (formerly Twitter), blogs, and other public forums.'
+};
+
 // --- Data Processing (Robust Cleaning) ---
 function processPredictionData(rows: DSVRowString<string>[]): ProcessedData {
   const data: ProcessedData = {};
@@ -291,6 +297,12 @@ export default function InvestorsView() {
           <CustomSelect label="Metric" value={selectedMetric} options={metrics} onChange={setSelectedMetric} />
         </div>
       </div>
+
+      {METRIC_DESCRIPTIONS[selectedMetric] && (
+        <div className="mb-6 p-4 bg-gray-900/50 rounded-lg border border-white/10 text-center">
+          <p className="text-sm text-gray-300 italic">{METRIC_DESCRIPTIONS[selectedMetric]}</p>
+        </div>
+      )}
 
       {loading && <div className="text-center text-gray-400 py-20">Loading data...</div>}
       {error && <div className="text-center text-red-400 py-20">{error}</div>}

@@ -424,11 +424,6 @@ function Hero() {
         <div className="mx-auto max-w-[1800px]">
           <Graphs />
 
-
-          <div className="bg-[#111827] text-white p-8 rounded-lg w-full">
-            <StakeholderInsights />
-          </div>
-
           <BubbleGraph width={w} height={h} nodes={nodes} />
           
           <div id="ask" className="scroll-mt-20">{showAsk && <AskBar />}</div>

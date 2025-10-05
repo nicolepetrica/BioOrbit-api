@@ -4,6 +4,7 @@ import Home from "./pages/Home";
 import AllPapers from "./pages/AllPapers";
 import SavedPapers from "./pages/SavedPapers";
 import AskAI from "./pages/AskAI";
+import Insights from "./pages/Insights";
 
 export default function App() {
   return (
@@ -12,6 +13,7 @@ export default function App() {
       <Route path="/all" element={<AllPapers />} />
       <Route path="/saved" element={<SavedPapers />} />
       <Route path="/ask" element={<AskAI />} />
+      <Route path="/insights" element={<Insights />} />
     </Routes>
   );
 }
