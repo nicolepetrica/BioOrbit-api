@@ -13,6 +13,7 @@ import os
 import time
 from pathlib import Path
 import json
+from collections import Counter
 
 # -----------------------
 # Configuration
@@ -20,14 +21,28 @@ import json
 CONFIG = {
     "data_dir": "./data",
     "summaries_dir": "./summaries",
-    "model": "mlx-community/Qwen2.5-32B-Instruct-4bit",  # Excellent for scientific text, minimal hallucinations
+    "model": "mlx-community/Qwen2.5-3B-Instruct-4bit",  # Larger model for better quality
     "max_tokens": 32000,
+    "max_summary_tokens": 2048,  # Increased for comprehensive summaries
 }
 
 
 # -----------------------
 # Helper Functions
 # -----------------------
+def is_already_summarized(doc: Document, summaries_dir: str) -> bool:
+    """Check if a document has already been summarized"""
+    filename = doc.metadata.get("filename", "")
+    if not filename:
+        return False
+    
+    base_name = os.path.splitext(filename)[0]
+    summary_filename = f"summary_{base_name}.pdf"
+    summary_path = os.path.join(summaries_dir, summary_filename)
+    
+    return os.path.exists(summary_path)
+
+
 def clean_pdf_text(text: str) -> str:
     """Clean and normalize PDF text"""
     # De-hyphenate words split across lines
@@ -140,34 +155,69 @@ def chunk_document(doc: Document, max_chunk_tokens: int = 20000) -> list[str]:
     return chunks
 
 
-def generate_doc_summary(model, tokenizer, content: str, chunk_num: int = None) -> str:
-    """Generate summary for document content"""
+def detect_repetition(text: str, threshold: int = 3) -> bool:
+    """Detect if text contains excessive repetition"""
+    # Split into sentences
+    sentences = re.split(r'[.!?]+', text)
+    sentences = [s.strip() for s in sentences if len(s.strip()) > 20]
+    
+    if not sentences:
+        return False
+    
+    # Count similar sentences (first 50 chars as fingerprint)
+    fingerprints = [s[:50].lower() for s in sentences]
+    counts = Counter(fingerprints)
+    
+    # Check for any sentence appearing more than threshold times
+    max_count = max(counts.values()) if counts else 0
+    return max_count >= threshold
+
+
+def clean_summary_output(text: str) -> str:
+    """Post-process summary to remove artifacts and improve quality"""
+    # Remove repetitive bullet points
+    lines = text.split('\n')
+    seen = set()
+    cleaned_lines = []
+    
+    for line in lines:
+        # Create a normalized version for comparison (remove minor variations)
+        normalized = re.sub(r'\d+', '#', line.strip().lower()[:60])
+        
+        # Skip if we've seen this pattern more than once
+        if normalized not in seen or len(normalized) < 10:
+            cleaned_lines.append(line)
+            seen.add(normalized)
+    
+    cleaned_text = '\n'.join(cleaned_lines)
+    
+    # Remove empty bullet points and excessive whitespace
+    cleaned_text = re.sub(r'\n\s*[-*•]\s*\n', '\n', cleaned_text)
+    cleaned_text = re.sub(r'\n{3,}', '\n\n', cleaned_text)
+    
+    return cleaned_text.strip()
+
+
+def generate_doc_summary(model, tokenizer, content: str, chunk_num: int = None, title: str = "") -> str:
+    """Generate summary for document content with improved prompt"""
     chunk_note = f" (Part {chunk_num})" if chunk_num else ""
-    prompt = f"""You are analyzing a NASA-funded bioscience research publication{chunk_note}.
+    
+    # Improved prompt with explicit instructions against repetition
+    prompt = f"""You are summarizing a scientific research paper{chunk_note}: {title}
 
-TASK: Extract results and key findings with scientific precision.
+CRITICAL INSTRUCTIONS:
+1. Extract ONLY key findings and quantitative results
+2. Use exact numbers and terminology from the paper
+3. Each point should be UNIQUE - never repeat similar information
+4. Organize findings hierarchically by importance
+5. Be comprehensive but concise - no redundancy
+6. Focus on: methodology, results, conclusions
+7. Ignore references, acknowledgments, and background
 
-CRITICAL RULES:
-1. Report ONLY information explicitly stated in the text
-2. Use exact numerical values as written (never approximate or round)
-3. Clearly distinguish between experimental conditions
-4. Never repeat the same finding in different words
-5. If uncertain about any detail, omit it completely
-
-FOCUS ON:
-- Quantitative results (measurements, percentages, statistical significance)
-- Experimental comparisons
-- Author conclusions
-- Key findings
-
-AVOID:
-- Repetitive statements about the same result
-- Background information or methods
-- Speculation not present in the text
-
-Text:
+Text to summarize:
 {content}
-"""
+
+Summary:"""
 
     if tokenizer.chat_template is not None:
         messages = [{"role": "user", "content": prompt}]
@@ -175,25 +225,63 @@ Text:
             messages, add_generation_prompt=True
         )
 
-    response = generate(model, tokenizer, prompt=prompt, verbose=False, max_tokens=2048)
+    response = generate(
+        model, 
+        tokenizer, 
+        prompt=prompt, 
+        verbose=False, 
+        max_tokens=CONFIG["max_summary_tokens"]
+    )
+    
+    # Post-process to remove artifacts
+    response = clean_summary_output(response)
+    
+    # Check for repetition and warn
+    if detect_repetition(response):
+        print(Fore.RED + "⚠ Warning: Detected repetition in summary, applying additional cleaning..." + Style.RESET_ALL)
+        response = clean_summary_output(response)
+    
     return response
 
 
-def combine_chunk_summaries(model, tokenizer, summaries: list[str]) -> str:
+def combine_chunk_summaries(model, tokenizer, summaries: list[str], title: str = "") -> str:
     """Combine multiple chunk summaries into a coherent final summary"""
-    combined = "\n\n".join([f"Part {i+1}:\n{s}" for i, s in enumerate(summaries)])
+    combined = "\n\n".join([f"Section {i+1}:\n{s}" for i, s in enumerate(summaries)])
     
-    prompt = f"""Below are summaries of different sections of a NASA bioscience publication. Create a unified, coherent summary that captures all key findings and results:
+    prompt = f"""Synthesize these section summaries of the paper "{title}" into ONE coherent summary.
 
+CRITICAL REQUIREMENTS:
+1. Create a unified narrative - do NOT simply list sections
+2. Remove ALL redundancy between sections
+3. Organize by theme, not by section number
+4. Preserve all unique quantitative findings
+5. Each finding should appear EXACTLY ONCE
+6. Maximum brevity while maintaining completeness
+
+Section summaries:
 {combined}
-"""
+
+Unified summary:"""
+    
     if tokenizer.chat_template is not None:
         messages = [{"role": "user", "content": prompt}]
         prompt = tokenizer.apply_chat_template(
             messages, add_generation_prompt=True
         )
 
-    response = generate(model, tokenizer, prompt=prompt, verbose=False)
+    response = generate(
+        model, 
+        tokenizer, 
+        prompt=prompt, 
+        verbose=False,
+        max_tokens=CONFIG["max_summary_tokens"],
+        temp=0.3,
+        repetition_penalty=1.2
+    )
+    
+    # Apply aggressive cleaning for combined summaries
+    response = clean_summary_output(response)
+    
     return response
 
 
@@ -233,14 +321,6 @@ def save_summary_as_pdf(summary: str, doc: Document, summaries_dir: str):
         alignment=TA_LEFT
     )
     
-    metadata_style = ParagraphStyle(
-        'Metadata',
-        parent=styles['Normal'],
-        fontSize=10,
-        textColor='#666666',
-        spaceAfter=6
-    )
-    
     body_style = ParagraphStyle(
         'CustomBody',
         parent=styles['Normal'],
@@ -255,13 +335,6 @@ def save_summary_as_pdf(summary: str, doc: Document, summaries_dir: str):
     
     # Title
     story.append(Paragraph(f"Summary of: {source}", title_style))
-    
-    # Metadata
-    story.append(Paragraph(f"<b>Generated:</b> {time.strftime('%Y-%m-%d %H:%M:%S')}", metadata_style))
-    story.append(Paragraph(f"<b>Pages:</b> {doc.metadata.get('num_pages', 'unknown')}", metadata_style))
-    story.append(Paragraph(f"<b>Original file:</b> {filename}", metadata_style))
-    
-    story.append(Spacer(1, 0.3*inch))
     
     # Summary content - split into paragraphs
     paragraphs = summary.split('\n\n')
@@ -303,12 +376,31 @@ if __name__ == "__main__":
         print(Fore.RED + "No documents found!" + Style.RESET_ALL)
         exit()
 
+    # Filter out already summarized documents
+    docs_to_process = []
+    skipped_count = 0
+    
+    for doc in docs:
+        if is_already_summarized(doc, CONFIG["summaries_dir"]):
+            print(Fore.BLUE + f"⊘ Skipping {doc.metadata['source']} (already summarized)" + Style.RESET_ALL)
+            skipped_count += 1
+        else:
+            docs_to_process.append(doc)
+    
+    if not docs_to_process:
+        print(Fore.GREEN + "\n✓ All documents have already been summarized!" + Style.RESET_ALL)
+        exit()
+    
+    print(Fore.YELLOW + f"\nProcessing {len(docs_to_process)} new documents ({skipped_count} already summarized)" + Style.RESET_ALL)
+
     # Process each document
-    for idx, doc in enumerate(docs):
+    for idx, doc in enumerate(docs_to_process):
         start = time.time()
         print(Fore.CYAN + f"\n{'='*80}" + Style.RESET_ALL)
-        print(Fore.CYAN + f"Processing document {idx+1}/{len(docs)}: {doc.metadata['source']}" + Style.RESET_ALL)
+        print(Fore.CYAN + f"Processing document {idx+1}/{len(docs_to_process)}: {doc.metadata['source']}" + Style.RESET_ALL)
         print(Fore.CYAN + f"{'='*80}" + Style.RESET_ALL)
+        
+        title = doc.metadata.get('source', '')
         
         # Check token count
         estimated_tokens = estimate_tokens(doc.page_content)
@@ -323,16 +415,16 @@ if __name__ == "__main__":
             
             for i, chunk in enumerate(chunks, 1):
                 print(Fore.YELLOW + f"Generating summary for chunk {i}/{len(chunks)}..." + Style.RESET_ALL)
-                chunk_summary = generate_doc_summary(model, tokenizer, chunk, chunk_num=i)
+                chunk_summary = generate_doc_summary(model, tokenizer, chunk, chunk_num=i, title=title)
                 chunk_summaries.append(chunk_summary)
             
             # Combine summaries
             print(Fore.YELLOW + "Combining chunk summaries..." + Style.RESET_ALL)
-            final_summary = combine_chunk_summaries(model, tokenizer, chunk_summaries)
+            final_summary = combine_chunk_summaries(model, tokenizer, chunk_summaries, title=title)
         else:
             print(Fore.GREEN + "✓ Document fits in context window" + Style.RESET_ALL)
             print(Fore.YELLOW + "Generating summary..." + Style.RESET_ALL)
-            final_summary = generate_doc_summary(model, tokenizer, doc.page_content)
+            final_summary = generate_doc_summary(model, tokenizer, doc.page_content, title=title)
         
         # Display and save summary
         print(Fore.RED + f"summarized ({time.time() - start:.2f} seconds)" + Style.RESET_ALL)

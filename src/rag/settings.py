@@ -4,6 +4,7 @@ from typing import List, Tuple
 
 class Settings(BaseSettings):
     documents_directory: str = "./data"
+    csv_path: str = "./papers-2.csv"
 
     chunk_size: int = 1200
     chunk_overlap: int = 200
@@ -14,7 +15,7 @@ class Settings(BaseSettings):
 
     # weights: (bm25, semantic)
     ensemble_weights: Tuple[float, float] = (0.3, 0.7)
-    bm25_k: int = 10
+    bm25_k: int = 20
     faiss_k: int = 10
 
     rerank_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
@@ -26,7 +27,7 @@ class Settings(BaseSettings):
     hyde_topp: float = 0.9
     num_pred: int = 100
 
-    answer_model: str = "gemma2:2b"
+    answer_model: str = "deepseek-r1:1.5b"
     answer_temp: float = 0.1
     answer_topk: int = 20
 

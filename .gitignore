@@ -1,3 +1,4 @@
 data/*.pdf
+summaries/*.pdf
 virtualenv
 faiss_index

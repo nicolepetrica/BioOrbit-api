@@ -6,11 +6,12 @@ from langchain_community.vectorstores import FAISS
 from sentence_transformers import CrossEncoder
 from langchain.schema import Document
 from rag.settings import settings
-import asyncio
+import pandas as pd
 import ollama
 import fitz  # PyMuPDF
 import re
 import os
+import json
 
 class RAG:
     _instance = None
@@ -64,10 +65,10 @@ class RAG:
             if not filename.lower().endswith(".pdf"):
                 continue
 
+            base_name = os.path.splitext(filename)[0]  # removes ".pdf"
+
             filepath = os.path.join(directory, filename)
             pdf = fitz.open(filepath)
-
-            title = pdf.metadata.get('title', filename)
 
             total_pages = pdf.page_count
             full_text = ""
@@ -93,7 +94,8 @@ class RAG:
                 doc = Document(
                     page_content=chunk,
                     metadata={
-                        "source": title,
+                        "title": base_name,
+                        "source": base_name,           # full filename for display
                         "chunk_index": i,
                         "total_chunks": len(chunks),
                         "total_pages": total_pages
@@ -137,6 +139,11 @@ class RAG:
         bm25_retriever = BM25Retriever.from_documents(self.docs)
         bm25_retriever.k = settings.bm25_k
         
+        # in __init__ after creation:
+        self.faiss_vectorstore = vectorstore
+        self.faiss_retriever = faiss_retriever
+        self.bm25_retriever = bm25_retriever
+
         # Create ensemble retriever combining both
         self.retriever = EnsembleRetriever(
             retrievers=[bm25_retriever, faiss_retriever],
@@ -149,6 +156,9 @@ class RAG:
             max_length=512,
             device=settings.device
         )
+
+        self.publications_df = pd.read_csv(settings.csv_path)
+        self.publications_df['Title'] = self.publications_df['Title'].str.strip()
 
     def _generate_hyde_prompt(self, prompt: str) -> str:
         response = ollama.generate(
@@ -168,8 +178,45 @@ Answer:""",
         )
 
         return response['response']
+    
+    def _manual_ensemble(self, query: str, hyde: str, w_faiss=0.5, w_bm25=0.5, k=10):
+        # FAISS with scores:
+        faiss_results = self.faiss_vectorstore.similarity_search_with_score(hyde, k=k)
+        # faiss_results: list[(Document, float)] where float is distance/score (smaller => closer for some versions)
+        # normalize faiss score (example: invert distance => similarity)
+        faiss_docs = []
+        print("FAISS DOCS")
+        for doc, score in faiss_results:
+            # if the returned score is a distance, convert: sim = 1/(1+score)
+            sim = 1.0 / (1.0 + abs(score))
+            faiss_docs.append((doc, sim))
 
-    def _retrieve_documents(self, prompt: str):
+            print(doc.metadata)
+
+        # BM25 - many BM25 retrievers return Documents without score; use rank fallback
+        bm25_docs = self.bm25_retriever.get_relevant_documents(query)[:k]
+        bm25_ranked = [(doc, 1.0 / (rank + 1)) for rank, doc in enumerate(bm25_docs)]
+
+        # merge by unique id (filename+chunk_index)
+        merged = {}
+        for doc, s in faiss_docs:
+            key = (doc.metadata.get("file_id"), doc.metadata.get("chunk_index"))
+            merged.setdefault(key, {"doc": doc, "faiss": 0.0, "bm25": 0.0})["faiss"] = s
+        for doc, s in bm25_ranked:
+            key = (doc.metadata.get("file_id"), doc.metadata.get("chunk_index"))
+            merged.setdefault(key, {"doc": doc, "faiss": 0.0, "bm25": 0.0})["bm25"] = s
+
+        # combine scores
+        combined = []
+        for v in merged.values():
+            comb_score = w_faiss * v["faiss"] + w_bm25 * v["bm25"]
+            combined.append((v["doc"], comb_score))
+
+        combined.sort(key=lambda x: x[1], reverse=True)
+        return [d for d, s in combined[:k]]
+
+
+    def _retrieve_documents(self, prompt: str, hyde: str):
         """
         Retrieve relevant documents from the vectorstore for a given prompt.
         Returns a list of LangChain Document objects.
@@ -178,7 +225,8 @@ Answer:""",
             raise ValueError("Retriever is not initialized. Make sure __init__ has been called.")
 
         # Use the retriever to get top-k documents
-        docs = self.retriever.invoke(prompt)
+        # docs = self.retriever.invoke(prompt)
+        docs = self._manual_ensemble(prompt, hyde, settings.ensemble_weights[0], settings.ensemble_weights[1], settings.bm25_k)
         return docs
 
     def _rerank_documents(self, query: str, documents: list[Document]) -> list[Document]:
@@ -221,18 +269,45 @@ Answer:""",
         
         return reranked_docs
 
-    def _generate_context_from_documents(self, documents: list[Document]) -> str:
+    def _generate_context_from_documents(self, documents: list[Document]) -> tuple[str, dict]:
         context = ""
+
+        # Create a mapping from document ID to document title/filename
+        doc_id_to_title = {}
+        
+        print("\n" + "="*60)
+        print("DEBUG: Building context from documents")
+        print("="*60)
         
         for i, doc in enumerate(documents):
-            source = doc.metadata['source']
-            content = doc.page_content
-            context += f"[id: doc{i} | source: {source}]\n{content}\n\n"
-        
-        return context 
+            # Assuming the IDs in source_ids will be in format 'doc0', 'doc1', etc.
+            doc_id = f"doc{i}"
 
-    def _generate_context_based_answer(self, documents: list[Document], prompt: str, stream: bool=False) -> str:
-        context = self._generate_context_from_documents(documents)
+            # Try to get source, fall back to file_id if source is missing
+            title = doc.metadata.get('title', doc.metadata.get('file_id', 'Unknown'))
+            file_id = doc.metadata.get('file_id', title)
+            content = doc.page_content
+            
+            print(f"Document {i}:")
+            print(f"  - doc_id: {doc_id}")
+            print(f"  - title from metadata: {title}")
+            print(f"  - file_id from metadata: {file_id}")
+            print(f"  - full metadata: {doc.metadata}")
+            print(f"  - content preview: {content[:100]}...")
+            print()
+            
+            context += f"[id: {doc_id} | title: {title}]\n{content}\n\n"
+            
+            # Store the actual filename (source) not file_id
+            doc_id_to_title[doc_id] = title
+        
+        print(f"Final doc_id_to_title mapping: {doc_id_to_title}")
+        print("="*60 + "\n")
+        
+        return context, doc_id_to_title
+
+    def _generate_context_based_answer(self, documents: list[Document], prompt: str, stream: bool=False) -> tuple[str, list[str]]:
+        context, doc_id_to_title = self._generate_context_from_documents(documents)
 
         schema = {
             "type": "object",
@@ -244,31 +319,27 @@ Answer:""",
                 "source_ids": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "List of document IDs used to generate the answer (e.g., ['doc0', 'doc1'])"
+                    "description": "List of document IDs used to generate the answer (e.g., ['doc0', 'doc4'])"
                 }
             },
             "required": ["answer", "source_ids"]
         }
 
-        prompt = f"""Using ONLY the following context, answer the user's question.
-After your answer, list the document IDs you used (format: Used sources: id1, id2, id3)
+        full_prompt = f"""Using ONLY the following context, answer the user's question.
+You MUST include the document IDs you used in the 'source_ids' field of your JSON response.
 
 Context: 
 {context}
 
 Question: {prompt}
 
-Answer:"""
+Provide your answer in JSON format with 'answer' and 'source_ids' fields."""
         
-        print(f"PROMPT: \n {prompt}")
+        print(f"PROMPT: \n {full_prompt}")
 
         response = ollama.generate(
             model=settings.answer_model,
-            prompt=f"""Generate a short, concise paragraph that reads like part of a factual article or encyclopedia entry. It should be 2-3 sentences maximum.
-
-Question: {prompt}
-
-Answer:""",
+            prompt=full_prompt,
             stream=stream,
             format=schema,
             options={
@@ -277,14 +348,108 @@ Answer:""",
             }
         )
 
-        return response['response']
-    
+        # FIX: Access response correctly
+        raw_text = response['response'].strip()
+        
+        print("\n" + "="*60)
+        print("DEBUG: LLM Response Analysis")
+        print("="*60)
+        print(f"Raw response text:\n{raw_text}")
+        print("="*60 + "\n")
 
-    def prompt(self, prompt: str) -> str:
+        try:
+            response_dict = json.loads(raw_text)
+        except json.JSONDecodeError as e:
+            print(f"⚠️ JSON parsing failed: {e}")
+            print("⚠️ Model returned non-JSON. Raw output:")
+            print(raw_text)
+            # fallback
+            response_dict = {"answer": raw_text, "source_ids": []}
+
+        answer = response_dict.get("answer", "")
+        ids = response_dict.get("source_ids", [])
+        
+        print("\n" + "="*60)
+        print("DEBUG: Source ID Matching")
+        print("="*60)
+        print(f"doc_id_to_title mapping: {doc_id_to_title}")
+        print(f"Returned source_ids from LLM: {ids}")
+        print(f"Type of source_ids: {type(ids)}")
+        if ids:
+            print(f"Type of first ID: {type(ids[0])}")
+        print("="*60 + "\n")
+
+        # Get titles for each source ID
+        source_titles = []
+        for source_id in ids:
+            source_id_cleaned = str(source_id).strip()  # Ensure string and remove whitespace
+            print(f"Processing ID: '{source_id}' -> cleaned: '{source_id_cleaned}'")
+            
+            if source_id_cleaned in doc_id_to_title:
+                matched_title = doc_id_to_title[source_id_cleaned]
+                print(f"  ✓ Matched to: {matched_title}")
+                source_titles.append(matched_title)
+            else:
+                print(f"  ✗ NOT FOUND in mapping!")
+                print(f"  Available keys: {list(doc_id_to_title.keys())}")
+                source_titles.append(f"Unknown document ({source_id_cleaned})")
+
+        print(f"\nFinal Answer: {answer}")
+        print(f"Final Source PDFs: {source_titles}\n")
+        
+        # Return both the answer and the source titles
+        return answer, source_titles
+    
+    def _get_publication_metadata(self, title: str) -> dict:
+        """
+        Retrieve publication metadata from CSV based on title.
+        Returns dict with relevant fields or None if not found.
+        """
+        # Try exact match first
+        match = self.publications_df[self.publications_df['Title'] == title]
+        
+        # If no exact match, try case-insensitive match
+        if match.empty:
+            match = self.publications_df[
+                self.publications_df['Title'].str.lower() == title.lower()
+            ]
+        
+        # If still no match, try partial match (contains)
+        if match.empty:
+            match = self.publications_df[
+                self.publications_df['Title'].str.contains(title, case=False, na=False)
+            ]
+        
+        if not match.empty:
+            # Get the first match
+            row = match.iloc[0]
+            
+            # Extract relevant fields, handling potential NaN values
+            metadata = {
+                'title': row.get('Title', 'N/A'),
+                'link': row.get('Link', 'N/A'),
+                'journal': row.get('Journal Title', 'N/A'),
+                'year': row.get('Publication Year', 'N/A'),
+                'authors': row.get('Authors', 'N/A'),
+                'keywords': row.get('Keywords', 'N/A'),
+                'tldr': row.get('TLDR Summary', 'N/A'),
+                'doi': row.get('DOI', 'N/A'),
+            }
+            
+            # Replace NaN with 'N/A'
+            for key, value in metadata.items():
+                if pd.isna(value):
+                    metadata[key] = 'N/A'
+            
+            return metadata
+        
+        return None
+
+    def prompt(self, prompt: str) -> tuple[str, list[str]]:
         hyde_prompt = self._generate_hyde_prompt(prompt)
         # print(f"HYDE PROMPT: {hyde_prompt}")
 
-        relevant_docs = self._retrieve_documents(hyde_prompt)
+        relevant_docs = self._retrieve_documents(prompt, hyde_prompt)
 
         # Rerank with the original user prompt (not hyde_prompt)
         reranked_docs = self._rerank_documents(prompt, relevant_docs)
@@ -298,9 +463,16 @@ Answer:""",
         #     print(f"SOURCE: {d.metadata['source']}")
         #     print(d.page_content)
 
-        response = self._generate_context_based_answer(reranked_docs, prompt)
+        answer, source_titles = self._generate_context_based_answer(reranked_docs, prompt)
 
-        return response
+        enriched = []
+        for title in source_titles:
+            enriched.append(self._get_publication_metadata(title))
+
+        return {
+            "answer": answer,
+            "source": enriched
+        }
     
     # In rag.py, change back to:
     # def prompt_stream(self, prompt: str):  # Remove async
@@ -311,4 +483,4 @@ Answer:""",
     #     response_generator = self._generate_context_based_answer(reranked_docs, prompt, stream=True)
         
     #     for chunk in response_generator:
-    #         yield chunk
+    #         yield chunk 
