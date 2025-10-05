@@ -31,14 +31,14 @@ services:
     networks:
       - app_network
 
-  # similarity:
-  #   build:
-  #     context: ./similaritycontext
-  #     dockerfile: knn.Dockerfile
-  #   ports:
-  #     - "8080:8080"
-  #   networks:
-  #     - app_network
+  similarity:
+    build:
+      context: ./similaritycontext
+      dockerfile: knn.Dockerfile
+    ports:
+      - "8080:8080"
+    networks:
+      - app_network
 
   # frontend:
   #   build:
