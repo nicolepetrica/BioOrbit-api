@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Search } from "lucide-react";
 import { csvParse } from "d3-dsv";
 import Navbar from "./components/Navbar";
+import Graphs from "./components/Graphs";
 
 /* --------------------------------- Data --------------------------------- */
 export type Node = {
@@ -474,6 +475,7 @@ export default function Home() {
       <section id="trends" ref={bubbleSectionRef} className="relative w-screen px-[40px]">
         <PixelBackdrop />
         <div className="mx-auto max-w-[1800px]">
+          <Graphs />
           <BubbleGraph width={w} height={h} nodes={nodes} />
           <div id="ask" className="scroll-mt-20">{showAsk && <AskBar />}</div>
 
