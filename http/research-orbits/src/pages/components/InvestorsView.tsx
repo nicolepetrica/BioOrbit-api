@@ -32,6 +32,10 @@ function processPredictionData(rows: DSVRowString<string>[]): ProcessedData {
 
     if (!year || metric === 'Unknown' || concept === 'Unknown') return;
 
+    if (year < 2010 || !year || metric === 'Unknown' || concept === 'unknown' || concept === '') {
+      return;
+    }
+
     if (!data[concept]) data[concept] = {};
     if (!data[concept][metric]) data[concept][metric] = [];
 
