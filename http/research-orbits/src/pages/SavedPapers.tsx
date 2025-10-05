@@ -2,8 +2,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Navbar from "./components/Navbar.tsx";
 import PaperCard from "./components/PaperCard";
-import { loadPapers, type Paper } from "/home/rideckszz/Documents/GitHub/NasaSpaceYags/http/research-orbits/src/lib/papers.ts";
-import { useBookmarks } from "/home/rideckszz/Documents/GitHub/NasaSpaceYags/http/research-orbits/src/hooks/useBookmarks.ts";
+import { loadPapers, type Paper } from "./lib/papers.ts";
+import { useBookmarks } from "./hooks/useBookmarks.ts";
 
 /* ---------- tiny placeholder charts (no deps) ---------- */
 function NetworkPlaceholder() {
