@@ -9,6 +9,12 @@ const COLORS = [
   '#822FAF', '#6D23B6', '#6411AD', '#571089', '#47126B'
 ];
 
+const SUNBURST_CATEGORY_DESCRIPTIONS = {
+    'Social Media Mentions': 'Total number of mentions across various social media platforms like Twitter, Facebook, etc.',
+    'Mendeley Readers': 'The number of people who have saved this paper to their Mendeley library, indicating readership and interest.',
+    'Altmetric Score': 'A weighted score that tracks the attention a research output has received online, including news, blogs, and social media.'
+};
+
 // --- Process data for Area Chart ---
 const processAreaData = (csvText) => {
   const data = csvParse(csvText);
@@ -35,12 +41,15 @@ const processAreaData = (csvText) => {
     .slice(0, 10)
     .map(([keyword]) => keyword);
 
-  const allYears = [...new Set(Object.keys(keywordCountsByYear))].sort((a,b) => a - b);
+  const allYears = [...new Set(Object.keys(keywordCountsByYear))]
+    .map(year => parseInt(year, 10))
+    .filter(year => year >= 2010) // Filter to start from 2010
+    .sort((a,b) => a - b);
   
   const chartData = allYears.map(year => {
-    const yearData = { year: parseInt(year, 10) };
+    const yearData = { year: year };
     topKeywords.forEach(keyword => {
-      yearData[keyword] = keywordCountsByYear[year][keyword] || 0;
+      yearData[keyword] = keywordCountsByYear[year]?.[keyword] || 0;
     });
     return yearData;
   });
@@ -326,9 +335,19 @@ const D3SunburstChart = ({ data }) => {
                 tooltip.transition().duration(200).style('opacity', .9);
             })
             .on('mousemove', (event, d) => {
-                const path = d.ancestors().map(d => d.data.name).reverse().join(" / ");
                 const [x, y] = d3.pointer(event, containerNode);
-                tooltip.html(`<strong>${path}</strong><br/>Value: ${d.value.toFixed(2)}`)
+                let tooltipContent = '';
+
+                if (d.depth === 1) { // It's a main category (inner circle)
+                    const categoryName = d.data.name;
+                    const description = SUNBURST_CATEGORY_DESCRIPTIONS[categoryName] || '';
+                    tooltipContent = `<strong>${categoryName}</strong><br/>${description}<br/><em>Total Value: ${d.value.toFixed(2)}</em>`;
+                } else { // It's a paper (outer circle)
+                    const path = d.ancestors().map(ancestor => ancestor.data.name).reverse().join(" / ");
+                    tooltipContent = `<strong>${path}</strong><br/>Value: ${d.value.toFixed(2)}`;
+                }
+                
+                tooltip.html(tooltipContent)
                     .style('left', (x + 15) + 'px')
                     .style('top', (y - 28) + 'px');
             })
