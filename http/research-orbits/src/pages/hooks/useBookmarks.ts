@@ -1,37 +1,41 @@
 // src/hooks/useBookmarks.ts
-import { useCallback, useEffect, useState } from "react";
-import { getCookie, setSessionCookie } from "../utils/cookies";
+import { useEffect, useState } from "react";
 
-const COOKIE_KEY = "ro_bookmarks"; // session cookie
+const STORAGE_KEY = "bookmarks:v1"; // <-- use the SAME key everywhere
 
 export function useBookmarks() {
   const [ids, setIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    const raw = getCookie(COOKIE_KEY);
-    if (!raw) return;
     try {
-      const arr = JSON.parse(raw);
-      if (Array.isArray(arr)) setIds(new Set(arr.map(String)));
-    } catch {}
+      const arr = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+      setIds(new Set(Array.isArray(arr) ? arr : []));
+    } catch {
+      setIds(new Set());
+    }
   }, []);
 
-  const persist = useCallback((next: Set<string>) => {
-    setIds(new Set(next));
-    setSessionCookie(COOKIE_KEY, JSON.stringify(Array.from(next)));
-  }, []);
+  const persist = (s: Set<string>) => {
+    setIds(new Set(s));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([...s]));
+  };
 
-  const isBookmarked = useCallback((id: string) => ids.has(id), [ids]);
-
-  const toggle = useCallback((id: string) => {
+  const toggle = (id: string) => {
     const next = new Set(ids);
     next.has(id) ? next.delete(id) : next.add(id);
     persist(next);
-  }, [ids, persist]);
+  };
 
-  const clearAll = useCallback(() => {
-    persist(new Set());
-  }, [persist]);
+  const isBookmarked = (id: string) => ids.has(id);
 
-  return { ids, isBookmarked, toggle, clearAll };
+  // 1-based order (insertion order), or null if not saved
+  const getIndex = (id: string) => {
+    const list = [...ids];
+    const i = list.indexOf(id);
+    return i >= 0 ? i + 1 : null;
+  };
+
+  const clearAll = () => persist(new Set());
+
+  return { ids, toggle, isBookmarked, getIndex, clearAll };
 }
