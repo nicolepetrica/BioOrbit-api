@@ -7,6 +7,7 @@ import FeatureCard from "./components/FeatureCard";
 import FeaturesSection from "./components/FeaturesSection";
 import AIGroundedSection from "./components/AIGroundedSection";
 import StatsSection from "./components/StatsSection";
+import HeroBackground from "./components/HeroBackground";
 
 /* --------------------------------- Data --------------------------------- */
 export type Node = {
@@ -197,11 +198,8 @@ function BubbleGraph({ width, height, nodes }: { width: number; height: number; 
     <main className="min-h-screen overflow-x-hidden bg-[#0c0814] text-white">
       <Navbar />
 
-      <section className="relative flex items-center justify-center h-screen overflow-hidden">
-        {/* 1. The Bubble Graph Background */}
-        <div className="absolute inset-0 z-0 opacity-20 blur-0 scale-110 pointer-events-none">
-          <BubbleGraph width={w} height={h} nodes={nodes} />
-        </div>
+      <section className="relative flex items-center justify-center h-screen overflow-hidden z-0">
+        <HeroBackground />
         
         {/* 2. The Hero Text Content */}
         <div className="relative z-10 mx-auto max-w-4xl text-center px-8">

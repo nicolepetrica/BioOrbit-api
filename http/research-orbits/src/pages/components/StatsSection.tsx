@@ -3,7 +3,6 @@
 import React from 'react';
 import { PixelBackdrop } from './FeaturesSection';
 
-// Reusable component for the stat columns
 const StatItem: React.FC<{ value: string; children: React.ReactNode }> = ({ value, children }) => (
   <div>
     <p className="text-3xl lg:text-4xl font-bold text-violet-300">{value}</p>
@@ -13,7 +12,7 @@ const StatItem: React.FC<{ value: string; children: React.ReactNode }> = ({ valu
 
 const StatsSection: React.FC = () => {
     return (
-        <section className="relative w-full bg-[#0c0814] py-16 sm:py-20">
+        <section className="relative w-full bg-[#0c0814] py-16 sm:py-20 overflow-hidden">
             <PixelBackdrop />
             <div className="mx-auto max-w-6xl px-8 relative z-10">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-12 text-center md:text-left">

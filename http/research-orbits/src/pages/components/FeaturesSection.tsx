@@ -38,8 +38,8 @@ export function PixelBackdrop() {
 
 const FeatureRow: React.FC<FeatureRowProps> = ({ title, description, children }) => (
   <div className="grid grid-cols-1 items-center gap-8 md:grid-cols-2 md:gap-16">
-    <div>
-      <h2 className="text-3xl font-bold tracking-tight text-white lg:text-4xl">{title}</h2>
+    <div className='p-10'>
+      <h3 className="text-3xl font-bold tracking-tight text-white lg:text-4xl">{title}</h3>
     </div>
     <div className="text-lg text-white/70">
       {children || <p>{description}</p>}

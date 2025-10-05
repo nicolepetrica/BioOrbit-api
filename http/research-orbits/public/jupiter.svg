@@ -1,0 +1,33 @@
+<!-- public/jupiter.svg -->
+<!-- CHANGED: viewBox is now larger (-10 -10 220 220) to prevent clipping of the glow/blur effect -->
+<svg viewBox="-10 -10 220 220" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="jupiterGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FBBF24" />
+      <stop offset="100%" style="stop-color:#F59E0B" />
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- The circle is still drawn in the 0-200 coordinate space, but the larger viewBox gives its filter effect room -->
+  <circle cx="100" cy="100" r="100" fill="url(#jupiterGradient)" filter="url(#glow)" />
+  
+  <g clip-path="url(#clipCircle)">
+    <path d="M 0,50 C 50,60 150,40 200,50" stroke="#FDBA74" stroke-width="12" fill="none" stroke-linecap="round" opacity="0.6"/>
+    <path d="M 0,80 C 50,70 150,90 200,80" stroke="#FDBA74" stroke-width="15" fill="none" stroke-linecap="round" opacity="0.7"/>
+    <path d="M 0,115 C 50,125 150,105 200,115" stroke="#FED7AA" stroke-width="20" fill="none" stroke-linecap="round" opacity="0.8"/>
+    <path d="M 0,150 C 50,140 150,160 200,150" stroke="#FDBA74" stroke-width="10" fill="none" stroke-linecap="round" opacity="0.6"/>
+  </g>
+  
+  <defs>
+    <clipPath id="clipCircle">
+      <circle cx="100" cy="100" r="100" />
+    </clipPath>
+  </defs>
+</svg>
