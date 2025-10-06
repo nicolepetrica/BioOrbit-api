@@ -56,7 +56,7 @@ export default function PaperCard({
         >
           <div className="relative">
             <img
-              src="/icons/bookmark.svg"
+              src="./icons/bookmark.svg"
               alt="bookmark"
               className={`w-5 h-5 ${isSaved ? "brightness-100" : "opacity-80"}`}
             />

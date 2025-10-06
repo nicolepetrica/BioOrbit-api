@@ -21,7 +21,7 @@ export default function Navbar() {
             {/* Brand */}
             <Link to="/" className="flex items-center gap-2">
               <img
-                src="/icons/logo.svg"
+                src="./icons/logo.svg"
                 alt="Bio Orbits"
                 className="select-none h-[clamp(20px,2vw,32px)] w-[clamp(20px,2vw,32px)]"
                 draggable={false}
@@ -57,7 +57,7 @@ export default function Navbar() {
                 "
               >
                 <img
-                  src="/icons/askAI.svg"
+                  src="./icons/askAI.svg"
                   alt=""
                   className="h-4 w-4 md:h-5 md:w-5"
                 />
@@ -105,7 +105,7 @@ export default function Navbar() {
                 "
               >
                 <img
-                  src="/icons/askAI.svg"
+                  src="./icons/askAI.svg"
                   alt=""
                   className="h-4 w-4"
                 />
