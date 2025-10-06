@@ -1,10 +1,7 @@
 // src/components/ResearchersView.tsx
 import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import * as d3 from 'd3';
-import type { Paper } from '../lib/papers'; // Adjust path as needed
- // Adjust path as needed
-
-// --- YOUR PROVIDED CODE (with color scale fix) ---
+import type { Paper } from '../lib/papers';
 
 const COLORS = [
   '#EA698B', '#D55D92', '#C05299', '#AC46A1', '#973AA8',

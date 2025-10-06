@@ -16,6 +16,11 @@ export default function CitationNetworkSaved({
   useEffect(() => {
     if (!svgRef.current || !wrapRef.current) return;
 
+    // --- START: Added for copy-on-click functionality ---
+    let isCopying = false;
+    let copyTimeout: NodeJS.Timeout;
+    // --- END: Added for copy-on-click functionality ---
+
     // Root selections
     const wrap = d3.select(wrapRef.current);
     const svg = d3.select(svgRef.current);
@@ -41,6 +46,7 @@ export default function CitationNetworkSaved({
       .style("opacity", "0");
 
     const showTip = (ev: any, d: any) => {
+      if (isCopying) return; // Don't show if copy confirmation is active
       const [x, y] = d3.pointer(ev, wrapRef.current);
       const title =
         d.label && d.label !== d.id
@@ -52,11 +58,41 @@ export default function CitationNetworkSaved({
         .style("top", `${y + 14}px`)
         .style("opacity", "1");
     };
+
     const moveTip = (ev: any) => {
+      if (isCopying) return; // Don't move if copy confirmation is active
       const [x, y] = d3.pointer(ev, wrapRef.current);
       tooltip.style("left", `${x + 14}px`).style("top", `${y + 14}px`);
     };
-    const hideTip = () => tooltip.style("opacity", "0");
+
+    const hideTip = () => {
+      if (isCopying) return; // Don't hide if copy confirmation is active
+      tooltip.style("opacity", "0");
+    };
+
+    // --- START: Added for copy-on-click functionality ---
+    const handleNodeClick = (ev: any, d: any) => {
+      if (!d.id) return;
+      navigator.clipboard.writeText(d.id).then(() => {
+        isCopying = true;
+        clearTimeout(copyTimeout); // Clear any previous hide timeout
+
+        const [x, y] = d3.pointer(ev, wrapRef.current);
+        tooltip
+          .html(`<div style="color:#4ade80; font-weight: 500;">Copied DOI!</div>`)
+          .style("left", `${x + 14}px`)
+          .style("top", `${y + 14}px`)
+          .style("opacity", "1");
+        
+        // Set a timeout to hide the confirmation and unlock the tooltip
+        copyTimeout = setTimeout(() => {
+          tooltip.style("opacity", "0");
+          isCopying = false;
+        }, 1500);
+
+      }).catch(err => console.error("Could not copy DOI: ", err));
+    }
+    // --- END: Added for copy-on-click functionality ---
 
     // Gradients
     const defs = svg.append("defs");
@@ -122,9 +158,11 @@ export default function CitationNetworkSaved({
       .enter()
       .append("g")
       .attr("class", "node")
+      .style("cursor", "pointer") // Add pointer cursor to indicate clickability
       .on("mouseenter", showTip)
       .on("mousemove", moveTip)
       .on("mouseleave", hideTip)
+      .on("click", handleNodeClick) // Add the click handler
       .call(
         d3
           .drag<SVGGElement, any>()
@@ -171,6 +209,7 @@ export default function CitationNetworkSaved({
 
     return () => {
       sim.stop();
+      clearTimeout(copyTimeout); // Clean up the timeout on component unmount
       tooltip.remove();
     };
   }, [graph, height]);
