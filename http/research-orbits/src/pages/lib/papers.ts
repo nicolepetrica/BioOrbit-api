@@ -19,7 +19,7 @@ export type Paper = {
   altmetricScore?: number; // Maps to "Altmetric Score"
 };
 
-export const CSV_URL = "/papers_enriched.csv";
+export const CSV_URL = "./papers_enriched.csv";
 
 function firstValueByKeys(row: Record<string,string>, keys: string[]): string | undefined {
   for (const k of keys) {
