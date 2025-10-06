@@ -1,14 +1,12 @@
 // src/App.tsx
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-// import { csvParse } from 'd3-dsv'; // No longer needed directly here
 import * as d3 from 'd3';
 import { loadPapers, type Paper } from '../lib/papers';
 import { useBookmarks } from '../hooks/useBookmarks';
 
-// --- Helper Functions (UNCHANGED for now, will modify to accept Paper[] next) ---
 const COLORS = [
-  '#FF6D00', '#FF7900', '#FF8500', '#FF9100', '#FF9E00',
-  '#240046', '#3C096C', '#5A189A', '#7B2CBF', '#9D4EDD'
+    '#FF6D00', '#FF7900', '#FF8500', '#FF9100', '#FF9E00',
+    '#240046', '#3C096C', '#5A189A', '#7B2CBF', '#9D4EDD'
 ];
 
 const SUNBURST_CATEGORY_DESCRIPTIONS = {
@@ -25,13 +23,11 @@ interface PopoverData {
   barData: {
     title: string;
     value: number;
-    papers: PopoverPaper[]; // This now explicitly says it's an array of Paper objects (with optional value)
+    papers: PopoverPaper[];
   };
   barElement: HTMLElement;
 }
 
-// --- Process data for Area Chart ---
-// This function now accepts Paper[]
 const processAreaData = (papers: Paper[]) => {
   const keywordCountsByYear = {};
   const totalKeywordCounts = {};
@@ -445,8 +441,8 @@ const KeywordsGraph = ({ papers } : { papers : Paper[]}) => {
   return (
     <div className="bg-gray-800 rounded-xl shadow-2xl p-4 sm:p-6 h-[70vh] flex flex-col">
       <div className="flex-shrink-0 mb-4 text-center">
-        <h2 className="text-xl font-bold text-white">OpenAlex Concepts Over Time</h2>
-        <p className="text-sm text-gray-400">Frequency of the top 10 concepts. Click a legend item to focus.</p>
+        <h2 className="text-xl font-bold text-white">Kewords Trends Through the Years</h2>
+        <p className="text-sm text-gray-400">Evolution of top research keywords over time.</p>
       </div>
       <div className="flex-grow relative">
         <D3AreaChart data={chartData} keywords={topKeywords} focusedKeyword={focusedKeyword} onLegendClick={handleLegendClick} />

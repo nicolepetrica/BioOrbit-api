@@ -10,10 +10,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-# Copia apenas o arquivo de requirements
 COPY similarity/requirements.txt ./similarity/requirements.txt
 
-RUN pip install --no-cache-dir torch==2.3.0+cpu torchvision==0.18.0+cpu --index-url https://download.pytorch.org/whl/cpu \
+RUN pip install --no-cache-dir torch==2.3.0 torchvision==0.18.0 --index-url https://download.pytorch.org/whl/cpu \
     && pip install --no-cache-dir -r ./similarity/requirements.txt
 
 COPY . .
