@@ -27,11 +27,10 @@ export async function fetchTopKSimilar(
   try {
     data = raw ? JSON.parse(raw) : {};
   } catch {
-    // keep raw text for error messages
+    console.error("Invalid JSON response:", raw);
   }
 
   if (!res.ok) {
-    // FastAPI style errors: { detail: [{loc, msg, type}] }
     const detail =
       (Array.isArray(data?.detail) &&
         data.detail.map((d: any) => `${d?.msg ?? "error"} (${d?.type ?? "unknown"})`).join("; ")) ||
@@ -40,28 +39,19 @@ export async function fetchTopKSimilar(
     throw new Error(`Similarity API ${res.status}: ${detail}`);
   }
 
-  // Expected happy path per your example:
-  // { results: [ { id: string, title: string, year: number | null, score: number }, ... ] }
+  // Expected: { results: [ { id, title, year, score }, ... ] }
   const items: any[] = Array.isArray(data?.results) ? data.results : [];
 
-  // Map to your SourceCard-friendly shape
-  const source = items.map((it) => {
-    const title = it?.title ?? "(untitled)";
-    const year = it?.year ?? undefined;
-    const score = typeof it?.score === "number" ? it.score : undefined;
-
-    // We don't have link/authors/keywords/doi in this response; leave them undefined/empty.
-    return {
-      title,
-      link: undefined,
-      journal: undefined,
-      year,
-      authors: "",
-      keywords: [],
-      tldr: typeof score === "number" ? `Similarity score: ${score.toFixed(3)}` : undefined,
-      doi: undefined,
-    };
-  });
+  const source = items.map((it) => ({
+    title: it?.title ?? "(untitled)",
+    link: undefined, // will be filled in UI using CSV
+    journal: undefined,
+    year: it?.year ?? undefined,
+    authors: "",
+    keywords: [],
+    doi: undefined,
+    score: typeof it?.score === "number" ? it.score : undefined, // ✅ keep score
+  }));
 
   const answer =
     source.length > 0
@@ -70,6 +60,7 @@ export async function fetchTopKSimilar(
 
   return { answer, source };
 }
+
 
 export type AnswerResponse = {
   ok?: boolean;

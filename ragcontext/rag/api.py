@@ -37,7 +37,7 @@ def wait_for_ollama_models(interval=5):
         try:
             response = ollama.list()
             available = [m["model"] for m in response["models"]]
-            if len(available) == 4:
+            if len(available) >= 4:
                 break
 
             logger.info(f"Models missing: {available}. Retrying in {interval}s...")
