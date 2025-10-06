@@ -3,7 +3,7 @@ import Navbar from "./components/Navbar";
 import ChatInput from "./components/ChatInput";
 import SourceCard from "./components/SourceCard";
 import ButtonPill from "./components/ButtonPill";
-import { fetchTopKSimilar } from "./lib/chatLib"; // POST {text,k} -> /similarity/topk_text
+import { fetchTopKSimilar, askBackend } from "./lib/chatLib"; // POST {text,k} -> /similarity/topk_text
 
 // ---------- local types ----------
 type Role = "user" | "assistant";
@@ -142,32 +142,49 @@ export default function AskAI() {
     const aid = crypto.randomUUID();
 
     add({ id: uid, role: "user", text: q });
-    add({ id: aid, role: "assistant", text: tab === "answers" ? "Preparing an answer…" : "Finding similar papers…", loading: true });
+    add({
+      id: aid,
+      role: "assistant",
+      text: tab === "answers" ? "Preparing an answer…" : "Finding similar papers…",
+      loading: true,
+    });
 
     abortRef.current?.abort();
     const ac = new AbortController();
     abortRef.current = ac;
 
     try {
-      // For now, both tabs use recommendations. Rewire here when askBackend returns.
-      const res = await fetchTopKSimilar(q, numArticles, ac.signal);
+      if (tab === "answers") {
+        // --- GET ANSWERS FLOW ---
+        const res = await askBackend(q, ac.signal);
+        patch(aid, {
+          loading: false,
+          text: res.answer || "No answer returned.",
+          // If your answers API later returns structured sources, you can render them here
+          sources: Array.isArray(res.source) ? res.source : [],
+        });
+      } else {
+        // --- RECOMMENDATIONS FLOW ---
+        const res = await fetchTopKSimilar(q, numArticles, ac.signal);
 
-      // Enrich with published Link from CSV by title
-      const enriched: Source[] = await Promise.all(
-        (res.source || []).map(async (s) => {
-          const fromCsv = s.title ? titleToLinkRef.current.get(norm(s.title)) : undefined;
-          return { ...s, link: fromCsv || s.link };
-        })
-      );
+        // Enrich with published Link from CSV by title
+        const enriched = await Promise.all(
+          (res.source || []).map(async (s) => {
+            const fromCsv = s.title
+              ? titleToLinkRef.current.get(
+                  s.title.toLowerCase().replace(/\s+/g, " ").replace(/[\u200B-\u200D\uFEFF]/g, "").trim()
+                )
+              : undefined;
+            return { ...s, link: fromCsv || s.link };
+          })
+        );
 
-      patch(aid, {
-        loading: false,
-        text:
-          tab === "answers"
-            ? `Top ${enriched.length} supporting paper(s) for: “${q}”.`
-            : res.answer || `Top ${enriched.length} articles for: “${q}”.`,
-        sources: enriched,
-      });
+        patch(aid, {
+          loading: false,
+          text: res.answer || `Top ${enriched.length} articles for: “${q}”.`,
+          sources: enriched,
+        });
+      }
     } catch (e: any) {
       patch(aid, {
         loading: false,
@@ -176,6 +193,7 @@ export default function AskAI() {
       });
     }
   }
+
 
   return (
     <main className="h-screen w-screen bg-[#0c0814] text-white flex flex-col">

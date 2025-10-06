@@ -2,86 +2,6 @@ import type { ChatResponse } from "../types/chat.ts";
 
 const API_URL = import.meta.env.VITE_CHAT_API_URL;
 
-export async function askBackend(query: string, signal?: AbortSignal): Promise<ChatResponse> {
-  if (!API_URL) throw new Error("VITE_CHAT_API_URL is not set");
-
-  const res = await fetch(API_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ q: query }),
-    signal,
-  });
-
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw new Error(`API ${res.status}: ${txt || res.statusText}`);
-  }
-  // Backend returns:
-  // { answer: "…", source: [{ title, link, journal, year, authors, keywords, tldr, doi }]}
-  return res.json();
-}
-
-// lib/chatLib.ts
-
-// Helper: map unknown API shapes to your SourceCard-friendly shape
-function normalizeToSource(item: any) {
-  const title =
-    item?.title ??
-    item?.paper_title ??
-    item?.Title ??
-    "(untitled)";
-
-  const journal =
-    item?.journal ??
-    item?.Journal ??
-    item?.journal_title ??
-    item?.["Journal Title"] ??
-    undefined;
-
-  const year =
-    item?.year ??
-    item?.publication_year ??
-    item?.["Publication Year"] ??
-    undefined;
-
-  const doi = item?.doi ?? item?.DOI ?? undefined;
-
-  const link =
-    item?.link ??
-    item?.url ??
-    item?.["Full Text Link"] ??
-    (doi ? `https://doi.org/${String(doi)}` : undefined);
-
-  // authors may be array or string
-  const authorsRaw = item?.authors ?? item?.Authors ?? "";
-  const authors =
-    Array.isArray(authorsRaw)
-      ? authorsRaw.join(", ")
-      : String(authorsRaw || "");
-
-  // keywords may be array or comma-separated string; also try OpenAlex concepts
-  const kwRaw =
-    item?.keywords ??
-    item?.Keywords ??
-    item?.openalex_concepts ??
-    item?.["OpenAlex Concepts"] ??
-    [];
-  const keywords = Array.isArray(kwRaw)
-    ? kwRaw
-    : String(kwRaw || "")
-        .replace(/^\[|\]$/g, "")
-        .split(/[,;|]/g)
-        .map((s) => s.trim().replace(/^['"]|['"]$/g, ""))
-        .filter(Boolean);
-
-  const tldr =
-    item?.tldr ??
-    item?.abstract ??
-    item?.["TLDR Summary"] ??
-    undefined;
-
-  return { title, link, journal, year, authors, keywords, tldr, doi };
-}
 
 
 export async function fetchTopKSimilar(
@@ -149,4 +69,53 @@ export async function fetchTopKSimilar(
       : "No similar papers found.";
 
   return { answer, source };
+}
+
+export type AnswerResponse = {
+  ok?: boolean;
+  answer: string;
+  source?: any[];
+};
+
+const ANSWERS_URL =
+  import.meta.env.VITE_ANSWERS_URL || "/api/query"; // if using Vite proxy
+
+export async function askBackend(
+  question: string,
+  signal?: AbortSignal
+): Promise<AnswerResponse> {
+  console.log("[askBackend] POST", ANSWERS_URL, { question });
+
+  const res = await fetch(ANSWERS_URL, {
+    method: "POST",
+    headers: {
+      accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ question }),
+    signal, // ✅ proper AbortSignal
+  });
+
+  const text = await res.text();
+  let data: any = {};
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    console.error("Invalid JSON:", text);
+    throw new Error("Invalid JSON from server");
+  }
+
+  if (!res.ok || data?.ok === false) {
+    const msg =
+      data?.detail?.[0]?.msg ||
+      data?.message ||
+      `Answers API ${res.status}`;
+    throw new Error(msg);
+  }
+
+  return {
+    ok: data.ok ?? true,
+    answer: data.answer ?? "",
+    source: Array.isArray(data.source) ? data.source : [],
+  };
 }
