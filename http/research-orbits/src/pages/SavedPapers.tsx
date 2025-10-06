@@ -77,13 +77,15 @@ export default function SavedPapers() {
   return (
     <main className="min-h-screen overflow-x-hidden bg-[#0c0814] text-white">
       <Navbar />
-      <section className="relative px-[40px] pt-10 pb-16">
+      <section className="relative px-[40px] pt-10 pb-16 overflow-hidden">
         <div className="pointer-events-none absolute inset-0 bg-[#0c0814]" />
         <div className="relative z-10 mx-auto max-w-[1800px]">
           <header className="flex items-end justify-between gap-4">
             <div className="text-center sm:text-left">
-              <h1 className="font-extrabold tracking-tight text-[clamp(24px,4.8vw,56px)]">Saved Papers</h1>
-              <p className="mt-2 text-white/80 text-[clamp(14px,1.3vw,18px)]">
+              <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl lg:text-5xl xl:text-[56px]">
+                Saved Papers
+              </h1>
+              <p className="mt-2 text-base text-white/80 lg:text-lg xl:text-[18px]">
                 Direct citations from your bookmarks. Shared references connect saved papers together.
               </p>
             </div>
@@ -124,7 +126,7 @@ export default function SavedPapers() {
               />
             ))}
             {savedList.length === 0 && (
-              <div className="text-white/70 text-center col-span-full">
+              <div className="text-white/70 text-center w-full">
                 You haven’t bookmarked anything yet. Go to <strong>All Papers</strong> and press “Bookmark”.
               </div>
             )}

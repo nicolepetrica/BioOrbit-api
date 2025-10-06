@@ -142,7 +142,7 @@ const FeaturesSection: React.FC = () => {
   ];
 
   return (
-    <section className="relative w-full bg-[#0c0814] py-16 sm:py-24">
+    <section className="relative w-full bg-[#0c0814] py-16 sm:py-24 overflow-hidden">
       <PixelBackdrop />
 
       <div className="px-8">
