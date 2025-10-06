@@ -4,6 +4,7 @@ import { Users, TrendingUp, Rocket } from 'lucide-react';
 import ExplorersView from './ExplorersView'; // Import the new component
 import { loadPapers, type Paper } from '../lib/papers'; // Import the Paper type
 import InvestorsView from './InvestorsView';
+import ResearchersView from './ResearchersView';
 
 type Tab = {
   id: 'researchers' | 'investors' | 'explorers';
@@ -25,7 +26,7 @@ export default function StakeholderInsights() {
   const renderContent = () => {
     switch (activeTab) {
       case 'researchers':
-        return <div className="text-center text-gray-300 p-10">Researchers content goes here.</div>;
+        return <ResearchersView papers={papers} />;
       case 'investors':
         return <InvestorsView />;
       case 'explorers':
