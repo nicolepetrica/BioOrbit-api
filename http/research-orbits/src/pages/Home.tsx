@@ -8,6 +8,7 @@ import FeaturesSection from "./components/FeaturesSection";
 import AIGroundedSection from "./components/AIGroundedSection";
 import StatsSection from "./components/StatsSection";
 import HeroBackground from "./components/HeroBackground";
+import NasaChallengeFooter from "./components/NasaChallengeFooter";
 
 /* --------------------------------- Data --------------------------------- */
 export type Node = {
@@ -222,6 +223,8 @@ function BubbleGraph({ width, height, nodes }: { width: number; height: number; 
       <footer id="footer" className="py-16 text-center text-white/60 text-[clamp(11px,0.9vw,13px)]">
         © {new Date().getFullYear()} Research Orbits — Space Biology Research
       </footer>
+
+      <NasaChallengeFooter />
     </main>
   );
   }
