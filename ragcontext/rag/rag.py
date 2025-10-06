@@ -11,14 +11,30 @@ import re
 import os
 import json
 import numpy as np
+from tqdm import tqdm
+import logging
+
+# Logging Settings
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("rag_api")
 
 class OllamaEmbeddings:
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        """
+        Embed documents one at a time with progress bar.
+        
+        Args:
+            texts: List of text strings to embed
+        
+        Returns:
+            List of embedding vectors
+        """
         vectors = []
-        for t in texts:
+        for t in tqdm(texts, desc="Embedding documents"):
             resp = ollama.embed(model=settings.embedding_model, input=t)
             vectors.append(resp['embeddings'][0])
         return vectors
+
 
     def embed_query(self, text: str) -> list[float]:
         resp = ollama.embed(model=settings.embedding_model, input=text)
@@ -185,16 +201,28 @@ Answer:""",
         faiss_docs = [(doc, 1.0/(1.0+abs(score))) for doc, score in faiss_results]
         bm25_docs = self.bm25_retriever.get_relevant_documents(query)[:k]
         bm25_ranked = [(doc, 1.0/(i+1)) for i, doc in enumerate(bm25_docs)]
+        
         merged = {}
         for doc, s in faiss_docs:
             key = (doc.metadata.get("source"), doc.metadata.get("chunk_index"))
-            merged.setdefault(key, {"doc": doc, "faiss":0.0, "bm25":0.0})["faiss"] = s
+            if key not in merged:
+                merged[key] = {"doc": doc, "faiss": 0.0, "bm25": 0.0}
+            merged[key]["faiss"] = s
+        
         for doc, s in bm25_ranked:
             key = (doc.metadata.get("source"), doc.metadata.get("chunk_index"))
-            merged.setdefault(key, {"doc": doc, "faiss":0.0, "bm25":0.0})["bm25"] = s
+            if key not in merged:
+                merged[key] = {"doc": doc, "faiss": 0.0, "bm25": 0.0}
+            else:
+                # Preserve the original document with all metadata from FAISS
+                # Only update the score, don't replace the doc
+                pass
+            merged[key]["bm25"] = s
+        
         combined = [(v["doc"], w_faiss*v["faiss"] + w_bm25*v["bm25"]) for v in merged.values()]
         combined.sort(key=lambda x: x[1], reverse=True)
         return [d for d,_ in combined[:k]]
+
 
 
     def _retrieve_documents(self, prompt: str, hyde: str):
@@ -279,15 +307,29 @@ Answer:""",
             "required": ["answer", "source_ids"]
         }
 
-        full_prompt = f"""Using ONLY the following context, answer the user's question.
-You MUST include the document IDs you used in the 'source_ids' field of your JSON response.
+        full_prompt = f"""You are Bio Orbit, a precise retrieval assistant.
 
-Context: 
+Your task: Answer the question using ONLY the provided context documents.
+
+CONTEXT DOCUMENTS:
 {context}
 
-Question: {prompt}
+USER QUESTION: {prompt}
 
-Provide your answer in JSON format with 'answer' and 'source_ids' fields."""
+CRITICAL INSTRUCTIONS:
+1. Answer ONLY using information found in the context above
+2. If you use information from a document, you MUST note its ID
+3. If the context doesn't contain relevant information, say so clearly
+4. NEVER include document IDs in 'source_ids' unless you actually referenced that document's content in your answer
+5. If you cannot answer from the context, return an empty list for 'source_ids'
+
+OUTPUT FORMAT (valid JSON):
+{{
+    "answer": "Your detailed answer here, or 'I cannot answer this question based on the provided context.' if the context is insufficient",
+    "source_ids": ["id1", "id2"]
+}}
+
+Remember: Only include IDs of documents whose content you ACTUALLY used in your answer. Empty array [] is valid if no documents were used."""
         
         print(f"PROMPT: \n {full_prompt}")
 
@@ -397,7 +439,9 @@ Provide your answer in JSON format with 'answer' and 'source_ids' fields."""
             
             return metadata
         
-        return None
+        return {
+            'title': title
+        }
 
     def prompt(self, prompt: str) -> tuple[str, list[str]]:
         hyde_prompt = self._generate_hyde_prompt(prompt)
@@ -419,9 +463,16 @@ Provide your answer in JSON format with 'answer' and 'source_ids' fields."""
 
         answer, source_titles = self._generate_context_based_answer(reranked_docs, prompt)
 
+        logger.info("SOURCE TITLES " + str(source_titles))
+
         enriched = []
+        unique_titles = set()
         for title in source_titles:
-            enriched.append(self._get_publication_metadata(title))
+            if title not in unique_titles:
+                unique_titles.add(title)
+                metadata = self._get_publication_metadata(title)
+                if metadata:
+                    enriched.append(metadata)
 
         return {
             "answer": answer,

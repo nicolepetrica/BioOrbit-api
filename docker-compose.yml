@@ -22,7 +22,9 @@ services:
       context: ./ragcontext
       dockerfile: rag.Dockerfile
     ports:
-      - "5000:5000"
+      - "5050:5000"
+    volumes:
+      - rag_faiss_cache:/app/faiss_cache
     environment:
       - OLLAMA_HOST=http://ollama:11434
     depends_on:
@@ -31,14 +33,14 @@ services:
     networks:
       - app_network
 
-  # similarity:
-  #   build:
-  #     context: ./similaritycontext
-  #     dockerfile: knn.Dockerfile
-  #   ports:
-  #     - "8080:8080"
-  #   networks:
-  #     - app_network
+  similarity:
+    build:
+      context: ./similaritycontext
+      dockerfile: knn.Dockerfile
+    ports:
+      - "8080:8080"
+    networks:
+      - app_network
 
   # frontend:
   #   build:
@@ -50,6 +52,7 @@ services:
 
 volumes:
   ollama_data:
+  rag_faiss_cache:
 
 networks:
   app_network:

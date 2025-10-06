@@ -12,3 +12,4 @@ PyYAML
 pydantic
 pydantic-settings
 ollama
+tqdm
