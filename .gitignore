@@ -1,6 +1,8 @@
 data/*.pdf
 summaries/*.pdf
 summaries/*.json
+old_summaries/*
+**/data/*.pdf
 virtualenv
 faiss_index
 **/*.DS_Store
