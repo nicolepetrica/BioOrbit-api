@@ -37,7 +37,7 @@ export default function PaperCard({
       <div className="mt-6 flex items-center justify-between">
         {/* Open button */}
         <a
-          href={p.link || p.doi}
+          href={p.url}
           target="_blank"
           rel="noopener noreferrer"
           className="px-4 py-2 bg-violet-300 text-slate-950 font-semibold rounded-xl text-sm hover:brightness-105 transition-all"
